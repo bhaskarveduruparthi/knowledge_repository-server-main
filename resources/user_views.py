@@ -19,8 +19,8 @@ class User_Requirements(Resource):
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
 
-        if check_user.type != 'admin':
-            return jsonify("Unauthorized, Not an Admin")
+        if check_user.type != 'Superadmin':
+            return jsonify("Unauthorized, Not an Super Admin")
 
         if request.method == 'POST':
             name = request.json['name'],
@@ -47,7 +47,7 @@ class User_Requirements(Resource):
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
 
-        if check_user.type == 'admin':
+        if check_user.type == 'Superadmin':
             
             posts = User.query.all()
             result = users.dump(posts)
@@ -94,7 +94,7 @@ class User_Requirements(Resource):
 
         check_user = User.query.filter_by(yash_id=yash_id).first()
 
-        if check_user is not None and check_admin.type == 'admin':
+        if check_user is not None and check_admin.type == 'Superadmin':
 
             if 'name' in request.json:
                 check_user.name = request.json['name']
@@ -117,7 +117,7 @@ class User_Requirements(Resource):
         current_user = get_jwt_identity()
         check_admin = User.query.filter_by(yash_id=current_user).first()
 
-        if check_admin.type == 'admin':
+        if check_admin.type == 'Superadmin':
 
             getting_user = User.query.filter_by(yash_id=yash_id).first()
             db.session.delete(getting_user)
