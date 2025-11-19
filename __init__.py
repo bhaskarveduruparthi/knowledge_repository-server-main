@@ -2,6 +2,10 @@ from flask import Flask
 from routes import Create_routes
 from default_settings import Create_Database
 from extensions import Create_Extension
+from flask_mail import Mail
+
+
+mail = Mail()
 
 def Create_app():
 

@@ -12,6 +12,7 @@ import pandas as pd
 from datetime import datetime
 from blueprints import rlp
 import os
+from sqlalchemy import func
 import numpy as np
 from openpyxl import load_workbook
 from io import BytesIO
@@ -34,6 +35,11 @@ class KNR_Requirements(Resource):
             get_repos = KNR.query.paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            page = request.args.get('page', 1, type=int)
+            get_repos = KNR.query.paginate(page=page, per_page=10)
+            result = knrs.dump(get_repos)
+            return jsonify(result)
         elif check_user is not None and check_user.type == 'user':
             page = request.args.get('page', 1, type=int)
             get_repos = KNR.query.filter_by(user_id=check_user.id).paginate(page=page, per_page=10)
@@ -41,6 +47,32 @@ class KNR_Requirements(Resource):
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
+
+    @rlp.route('/getapprovalrepos', methods=['GET'])
+    @jwt_required()
+    def getapprovalrepos():
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+        if check_user is not None and check_user.type == 'Superadmin':
+            page = request.args.get('page', 1, type=int)
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').paginate(page=page, per_page=10)
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        else:
+            return jsonify("Not Authorized"), 401
+    
+    @rlp.route('/getapprovalreposrecords', methods=['GET'])
+    @jwt_required()
+    def getapprovalreposrecords():
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+        if check_user is not None and check_user.type == 'Superadmin':
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        else:
+            return jsonify("Not Authorized"), 401
+
 
     @rlp.route('/createrepo', methods=['POST'])
     @jwt_required()
@@ -82,6 +114,10 @@ class KNR_Requirements(Resource):
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
         if check_user is not None and check_user.type == 'Superadmin':
+            get_repos = KNR.query.all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
             get_repos = KNR.query.all()
             result = knrs.dump(get_repos)
             return jsonify(result)
@@ -382,3 +418,16 @@ class KNR_Requirements(Resource):
             )
         # Handle file not found
         return "File not found", 404
+    
+
+    @rlp.route('/repodatabymodule',methods=['GET'])
+    def data_by_module():
+        data = db.session.query(KNR.module_name, func.count(KNR.id)).group_by(KNR.module_name).all()
+        result = {module: count for module, count in data}
+        return jsonify(result)
+
+    @rlp.route('/repodatabydomain', methods=['GET'])
+    def data_by_domain():
+        data = db.session.query(KNR.domain, func.count(KNR.id)).group_by(KNR.domain).all()
+        result = {domain: count for domain, count in data}
+        return jsonify(result)
