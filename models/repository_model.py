@@ -29,3 +29,11 @@ class KNR(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 
     
+class DownloadLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(80), nullable=True)  # or Integer if user ids are integers
+    file_id = db.Column(db.Integer, nullable=False)
+    filename = db.Column(db.String(255))
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    ip_address = db.Column(db.String(45))
+    user_agent = db.Column(db.String(256))

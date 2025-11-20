@@ -2,7 +2,7 @@ from flask import request, json, jsonify
 from flask_jwt_extended import create_access_token
 from flask_restful import Resource
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models.user_model import User
+from models.user_model import User, LoginLog
 from schemas.user_schema import user
 from default_settings import db 
 import datetime
@@ -14,20 +14,41 @@ class User_auth(Resource):
     #Login Authentication for the user who is present in the Database
     @blp.route('/login', methods=['POST'])
     def login_user():
-
         data = request.get_json()
         yash_id = data['yash_id']
         password = data['password']
 
         post = User.query.filter_by(yash_id=yash_id).first()
 
+        ip_address = request.remote_addr
+        user_agent = request.headers.get('User-Agent')
+
         expires = datetime.timedelta(minutes=60)
 
-        if post and bcrypt.check_password_hash(post.password,password):
-           access_token = create_access_token(identity=yash_id, expires_delta=expires)
-           return jsonify({'access_token': access_token})
+        if post and bcrypt.check_password_hash(post.password, password):
+            access_token = create_access_token(identity=yash_id, expires_delta=expires)
+            log = LoginLog(
+                yash_id=yash_id,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                success=True,
+                message="Login successful"
+            )
+            db.session.add(log)
+            db.session.commit()
+            return jsonify({'access_token': access_token})
         else:
-           return jsonify({'message': 'Invalid credentials'}), 401
+            log = LoginLog(
+                yash_id=yash_id,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                success=False,
+                message="Invalid credentials"
+            )
+            db.session.add(log)
+            db.session.commit()
+            return jsonify({'message': 'Invalid credentials'}), 401
+
 
 
     #Creating an Admin who can add users and access the user requirements

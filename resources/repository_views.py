@@ -11,11 +11,20 @@ from werkzeug.utils import secure_filename
 import pandas as pd
 from datetime import datetime
 from blueprints import rlp
+from sqlalchemy import or_
 import os
 from sqlalchemy import func
 import numpy as np
 from openpyxl import load_workbook
 from io import BytesIO
+
+FILTER_COLUMN_MAP = {
+    "Domain": "domain",
+    "Module": "module_name",
+    "Customer Name": "customer_name",
+    "Sector": "sector",
+    "Standard/Custom": "standard_custom",
+}
 
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'xlsx'}
@@ -202,7 +211,7 @@ class KNR_Requirements(Resource):
                     technical_details=row.get('Technical details(Z object name or Process developed/configured)', ''),
                     customer_benefit=row.get('Customer benefit', ''),
                     remarks=row.get('Remarks', ''),
-                    attach_code_or_document=sheet_name,
+                    attach_code_or_document='UPLOADED',
                     attachment_filename=sheet_name,
                     attachment_data=sheet_data,
                     rep_user_id=rep_user_id_value,
@@ -288,12 +297,14 @@ class KNR_Requirements(Resource):
             total_repos = KNR.query.count()
             approved_repos = KNR.query.filter_by(Approval_status='Approved').count()
             unapproved_repos = KNR.query.filter_by(Approval_status='Not Approved').count()
-            total_users = User.query.count()
+            sent_for_approval_repos = KNR.query.filter_by(Approval_status='Sent for Approval').count()
+            
         elif check_user is not None and check_user.type == 'user':
             total_repos = KNR.query.filter_by(user_id=check_user.id).count()
             approved_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Approved').count()
             unapproved_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Not Approved').count()
-            total_users = User.query.count()
+            sent_for_approval_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Sent for Approval').count()
+            
         else:
             return jsonify({"msg": "Unauthorized"}), 401
 
@@ -301,7 +312,7 @@ class KNR_Requirements(Resource):
             "all_repos_count": total_repos,
             "approved_repos_count": approved_repos,
             "unapproved_repos_count": unapproved_repos,
-            "users_count": total_users
+            "sentforapproval_count": sent_for_approval_repos
         }), 200
 
 
@@ -431,3 +442,62 @@ class KNR_Requirements(Resource):
         data = db.session.query(KNR.domain, func.count(KNR.id)).group_by(KNR.domain).all()
         result = {domain: count for domain, count in data}
         return jsonify(result)
+    
+    
+
+    @rlp.route("/search", methods=["GET"])
+    def search_repositories():
+        selected_filter = request.args.get("filter")   # Dropdown selected filter, may be None
+        query_text = request.args.get("query")  # Search text
+
+        
+
+        if not query_text:
+            return jsonify({"error": "query is required"}), 400
+
+        # If filter is provided and valid, search in that column only
+        if selected_filter and selected_filter in FILTER_COLUMN_MAP:
+            column_name = FILTER_COLUMN_MAP[selected_filter]
+            column = getattr(KNR, column_name)
+            results = KNR.query.filter(column.ilike(f"%{query_text}%")).all()
+        else:
+            # No valid filter provided, search query_text across all relevant columns
+            results = KNR.query.filter(
+                or_(
+                    KNR.domain.ilike(f"%{query_text}%"),
+                    KNR.module_name.ilike(f"%{query_text}%"),
+                    KNR.customer_name.ilike(f"%{query_text}%"),
+                    KNR.sector.ilike(f"%{query_text}%"),
+                    KNR.standard_custom.ilike(f"%{query_text}%")
+                )
+            ).all()
+
+        
+
+        data = [
+        {
+            "id": r.id,
+            "customer_name": r.customer_name,
+            "domain": r.domain,
+            "sector": r.sector,
+            "module_name": r.module_name,
+            "detailed_requirement": r.detailed_requirement,
+            "standard_custom": r.standard_custom,
+            "technical_details": r.technical_details,
+            "customer_benefit": r.customer_benefit,
+            "remarks": r.remarks,
+            "attach_code_or_document": r.attach_code_or_document,
+            "attachment_filename": r.attachment_filename,
+            "Approver": r.Approver,
+            "Approval_status": r.Approval_status,
+            "Approval_date": r.Approval_date.isoformat() if r.Approval_date else None,
+            "business_justification": r.business_justification,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+            "rep_user_id": r.rep_user_id,
+            "user_id": r.user_id
+        }
+        for r in results
+        ]
+
+        return jsonify(data), 200
