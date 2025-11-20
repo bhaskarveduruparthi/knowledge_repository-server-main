@@ -16,10 +16,10 @@ def Create_app():
     Create_routes(app)
     Create_Extension(app)
 
-    from blueprints import blp, rlp
+    from blueprints import blp, rlp, slp
     app.register_blueprint(blp)
     app.register_blueprint(rlp)
-    
+    app.register_blueprint(slp)
 
     return app
 

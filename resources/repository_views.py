@@ -468,7 +468,13 @@ class KNR_Requirements(Resource):
                     KNR.module_name.ilike(f"%{query_text}%"),
                     KNR.customer_name.ilike(f"%{query_text}%"),
                     KNR.sector.ilike(f"%{query_text}%"),
-                    KNR.standard_custom.ilike(f"%{query_text}%")
+                    KNR.standard_custom.ilike(f"%{query_text}%"),
+                    KNR.technical_details.ilike(f"%{query_text}"),
+                    KNR.detailed_requirement.ilike(f"%{query_text}"),
+                    KNR.remarks.ilike(f"%{query_text}"),
+                    KNR.customer_benefit.ilike(f"%{query_text}"),
+                    KNR.business_justification.ilike(f"%{query_text}"),
+                    
                 )
             ).all()
 
