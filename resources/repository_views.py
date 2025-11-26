@@ -2,10 +2,11 @@ import mimetypes
 from flask import Response, request, jsonify, send_file
 from flask_restful import Resource
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models.user_model import User
+from models.user_model import LoginLog, User
 from models.repository_model import KNR
 from schemas.repository_schema import knr, knrs
 from schemas.user_schema import user, users
+from schemas.support_schema import login_log, login_logs
 from default_settings import db
 from werkzeug.utils import secure_filename
 import pandas as pd
@@ -63,8 +64,8 @@ class KNR_Requirements(Resource):
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
         if check_user is not None and check_user.type == 'Superadmin':
-            page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').paginate(page=page, per_page=10)
+            
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').all()
             result = knrs.dump(get_repos)
             return jsonify(result)
         else:
@@ -261,6 +262,22 @@ class KNR_Requirements(Resource):
             return jsonify("Status of the Repo Changed")
         else:
             return jsonify("Form Not Found")
+    
+    @rlp.route('/reporejection/<int:id>', methods=['PUT'])
+    @jwt_required()
+    def approvalreject_repo(id):
+        check_repo = KNR.query.filter_by(id=id).first()
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+
+        if check_repo is not None and check_user.type == 'Superadmin':
+            check_repo.Approval_status = "Rejected"
+            check_repo.Approver = check_user.name
+            check_repo.Approval_date = datetime.utcnow().date()
+            db.session.commit()
+            return jsonify("Status of the Repo Changed")
+        else:
+            return jsonify("Form Not Found")
 
     @rlp.route('/sendforapproval/<int:id>', methods=['PUT'])
     @jwt_required()
@@ -429,6 +446,29 @@ class KNR_Requirements(Resource):
             )
         # Handle file not found
         return "File not found", 404
+
+
+    @rlp.route('/refview/<int:id>')
+    def refview (id):
+        check_file = KNR.query.filter_by(id=id).first()
+        if check_file is not None:
+            filename = check_file.attachment_filename
+            filedata = check_file.attachment_data
+
+            # Guess the mimetype based on the filename
+            mimetype, _ = mimetypes.guess_type(filename)
+            if mimetype is None:
+                mimetype = 'application/octet-stream'  # fallback
+                    
+            return send_file(
+                BytesIO(filedata), 
+                mimetype=mimetype,
+                download_name=filename,
+                as_attachment=False   # <-- CHANGED HERE
+            )
+        # Handle file not found
+        return "File not found", 404
+
     
 
     @rlp.route('/repodatabymodule',methods=['GET'])
@@ -448,62 +488,271 @@ class KNR_Requirements(Resource):
     @rlp.route("/search", methods=["GET"])
     def search_repositories():
         selected_filter = request.args.get("filter")   # Dropdown selected filter, may be None
-        query_text = request.args.get("query")  # Search text
-
-        
+        query_text = request.args.get("query")         # Search text
 
         if not query_text:
             return jsonify({"error": "query is required"}), 400
 
-        # If filter is provided and valid, search in that column only
         if selected_filter and selected_filter in FILTER_COLUMN_MAP:
             column_name = FILTER_COLUMN_MAP[selected_filter]
             column = getattr(KNR, column_name)
             results = KNR.query.filter(column.ilike(f"%{query_text}%")).all()
         else:
-            # No valid filter provided, search query_text across all relevant columns
-            results = KNR.query.filter(
+            # Split the query into words for more flexible matching
+            words = query_text.split()
+            filters = [
                 or_(
-                    KNR.domain.ilike(f"%{query_text}%"),
-                    KNR.module_name.ilike(f"%{query_text}%"),
-                    KNR.customer_name.ilike(f"%{query_text}%"),
-                    KNR.sector.ilike(f"%{query_text}%"),
-                    KNR.standard_custom.ilike(f"%{query_text}%"),
-                    KNR.technical_details.ilike(f"%{query_text}"),
-                    KNR.detailed_requirement.ilike(f"%{query_text}"),
-                    KNR.remarks.ilike(f"%{query_text}"),
-                    KNR.customer_benefit.ilike(f"%{query_text}"),
-                    KNR.business_justification.ilike(f"%{query_text}"),
-                    
+                    KNR.domain.ilike(f"%{word}%"),
+                    KNR.module_name.ilike(f"%{word}%"),
+                    KNR.customer_name.ilike(f"%{word}%"),
+                    KNR.sector.ilike(f"%{word}%"),
+                    KNR.standard_custom.ilike(f"%{word}%"),
+                    KNR.technical_details.ilike(f"%{word}%"),
+                    KNR.detailed_requirement.ilike(f"%{word}%"),
+                    KNR.remarks.ilike(f"%{word}%"),
+                    KNR.customer_benefit.ilike(f"%{word}%"),
+                    KNR.business_justification.ilike(f"%{word}%"),
                 )
-            ).all()
-
-        
+                for word in words
+            ]
+            results = KNR.query.filter(or_(*filters)).all()
 
         data = [
-        {
-            "id": r.id,
-            "customer_name": r.customer_name,
-            "domain": r.domain,
-            "sector": r.sector,
-            "module_name": r.module_name,
-            "detailed_requirement": r.detailed_requirement,
-            "standard_custom": r.standard_custom,
-            "technical_details": r.technical_details,
-            "customer_benefit": r.customer_benefit,
-            "remarks": r.remarks,
-            "attach_code_or_document": r.attach_code_or_document,
-            "attachment_filename": r.attachment_filename,
-            "Approver": r.Approver,
-            "Approval_status": r.Approval_status,
-            "Approval_date": r.Approval_date.isoformat() if r.Approval_date else None,
-            "business_justification": r.business_justification,
-            "created_at": r.created_at.isoformat() if r.created_at else None,
-            "updated_at": r.updated_at.isoformat() if r.updated_at else None,
-            "rep_user_id": r.rep_user_id,
-            "user_id": r.user_id
-        }
-        for r in results
+            {
+                "id": r.id,
+                "customer_name": r.customer_name,
+                "domain": r.domain,
+                "sector": r.sector,
+                "module_name": r.module_name,
+                "detailed_requirement": r.detailed_requirement,
+                "standard_custom": r.standard_custom,
+                "technical_details": r.technical_details,
+                "customer_benefit": r.customer_benefit,
+                "remarks": r.remarks,
+                "attach_code_or_document": r.attach_code_or_document,
+                "attachment_filename": r.attachment_filename,
+                "Approver": r.Approver,
+                "Approval_status": r.Approval_status,
+                "Approval_date": r.Approval_date.isoformat() if r.Approval_date else None,
+                "business_justification": r.business_justification,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+                "rep_user_id": r.rep_user_id,
+                "user_id": r.user_id,
+            }
+            for r in results
         ]
 
         return jsonify(data), 200
+
+
+    @rlp.route('/getallapprovedrepos', methods=['GET'])
+    @jwt_required()
+    def getallapprovedrepos():
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+        if check_user is not None and check_user.type == 'Superadmin':
+            page = request.args.get('page', 1, type=int)
+            get_repos = KNR.query.filter_by(Approval_status='Approved').paginate(page=page, per_page=10)
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            page = request.args.get('page', 1, type=int)
+            get_repos = KNR.query.filter_by(Approval_status='Approved').paginate(page=page, per_page=10)
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        elif check_user is not None and check_user.type == 'user':
+            page = request.args.get('page', 1, type=int)
+            get_repos = KNR.query.filter_by(Approval_status='Approved',user_id=check_user.id).paginate(page=page, per_page=10)
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        else:
+            return jsonify("Not Authorized"), 401
+        
+    @rlp.route('/getallapprovedreporecords', methods=['GET'])
+    @jwt_required()
+    def getallapprovedreporecords():
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+        if check_user is not None and check_user.type == 'Superadmin':
+            get_repos = KNR.query.filter_by(Approval_status='Approved').all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            get_repos = KNR.query.filter_by(Approval_status='Approved').all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        elif check_user is not None and check_user.type == 'user':
+            get_repos = KNR.query.filter_by(Approval_status='Approved',user_id=check_user.id).all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        else:
+            return jsonify("Not Authorized"), 401
+
+
+    @rlp.route('/getallpendingrepos', methods=['GET'])
+    @jwt_required()
+    def getallpendingrepos():
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+        if check_user is not None and check_user.type == 'Superadmin':
+            page = request.args.get('page', 1, type=int)
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').paginate(page=page, per_page=10)
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            page = request.args.get('page', 1, type=int)
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').paginate(page=page, per_page=10)
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        elif check_user is not None and check_user.type == 'user':
+            page = request.args.get('page', 1, type=int)
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',user_id=check_user.id).paginate(page=page, per_page=10)
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        else:
+            return jsonify("Not Authorized"), 401
+        
+    @rlp.route('/getallpendingreporecords', methods=['GET'])
+    @jwt_required()
+    def getallpendingreporecords():
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+        if check_user is not None and check_user.type == 'Superadmin':
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        elif check_user is not None and check_user.type == 'user':
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',user_id=check_user.id).all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        else:
+            return jsonify("Not Authorized"), 401
+
+
+    @rlp.route('/getallunapprovedrepos', methods=['GET'])
+    @jwt_required()
+    def getallunapprovedrepos():
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+        if check_user is not None and check_user.type == 'Superadmin':
+            page = request.args.get('page', 1, type=int)
+            get_repos = KNR.query.filter_by(Approval_status='Not Approved').paginate(page=page, per_page=10)
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            page = request.args.get('page', 1, type=int)
+            get_repos = KNR.query.filter_by(Approval_status='Not Approved').paginate(page=page, per_page=10)
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        elif check_user is not None and check_user.type == 'user':
+            page = request.args.get('page', 1, type=int)
+            get_repos = KNR.query.filter_by(Approval_status='Not Approved',user_id=check_user.id).paginate(page=page, per_page=10)
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        else:
+            return jsonify("Not Authorized"), 401
+        
+    @rlp.route('/getallunapprovedreporecords', methods=['GET'])
+    @jwt_required()
+    def getallunapprovedreporecords():
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+        if check_user is not None and check_user.type == 'Superadmin':
+            get_repos = KNR.query.filter_by(Approval_status='Not Approved').all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            get_repos = KNR.query.filter_by(Approval_status='Not Approved').all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        elif check_user is not None and check_user.type == 'user':
+            get_repos = KNR.query.filter_by(Approval_status='Not Approved',user_id=check_user.id).all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        else:
+            return jsonify("Not Authorized"), 401
+        
+
+    @rlp.route('/getallrejectedrepos', methods=['GET'])
+    @jwt_required()
+    def getallrejectedrepos():
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+        if check_user is not None and check_user.type == 'Superadmin':
+            page = request.args.get('page', 1, type=int)
+            get_repos = KNR.query.filter_by(Approval_status='Rejected').paginate(page=page, per_page=10)
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            page = request.args.get('page', 1, type=int)
+            get_repos = KNR.query.filter_by(Approval_status='Rejected').paginate(page=page, per_page=10)
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        elif check_user is not None and check_user.type == 'user':
+            page = request.args.get('page', 1, type=int)
+            get_repos = KNR.query.filter_by(Approval_status='Rejected',user_id=check_user.id).paginate(page=page, per_page=10)
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        else:
+            return jsonify("Not Authorized"), 401
+        
+    @rlp.route('/getallrejectedreporecords', methods=['GET'])
+    @jwt_required()
+    def getallrejectedreporecords():
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+        if check_user is not None and check_user.type == 'Superadmin':
+            get_repos = KNR.query.filter_by(Approval_status='Rejected').all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            get_repos = KNR.query.filter_by(Approval_status='Rejected').all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        elif check_user is not None and check_user.type == 'user':
+            get_repos = KNR.query.filter_by(Approval_status='Rejected',user_id=check_user.id).all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        else:
+            return jsonify("Not Authorized"), 401
+
+    @rlp.route('/getlogs', methods=['GET'])
+    @jwt_required()
+    def getlogs():
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+        if check_user is not None and check_user.type == 'Superadmin':
+            page = request.args.get('page', 1, type=int)
+            get_logs = LoginLog.query.paginate(page=page, per_page=10)
+            result = login_logs.dump(get_logs)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            page = request.args.get('page', 1, type=int)
+            get_logs = LoginLog.query.paginate(page=page, per_page=10)
+            result = login_logs.dump(get_logs)
+            return jsonify(result)
+        
+        else:
+            return jsonify("Not Authorized"), 401
+        
+    @rlp.route('/getlogrecords', methods=['GET'])
+    @jwt_required()
+    def getlogrecords():
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+        if check_user is not None and check_user.type == 'Superadmin':
+            get_logs = LoginLog.query.all()
+            result = login_logs.dump(get_logs)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            get_logs = LoginLog.query.all()
+            result = login_logs.dump(get_logs)
+            return jsonify(result)
+        
+        else:
+            return jsonify("Not Authorized"), 401
