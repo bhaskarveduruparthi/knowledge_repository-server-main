@@ -3,10 +3,10 @@ from flask import Response, request, jsonify, send_file
 from flask_restful import Resource
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models.user_model import LoginLog, User
-from models.repository_model import KNR
+from models.repository_model import KNR, DownloadLog
 from schemas.repository_schema import knr, knrs
 from schemas.user_schema import user, users
-from schemas.support_schema import login_log, login_logs
+from schemas.support_schema import login_log, login_logs, download_log, download_logs
 from default_settings import db
 from werkzeug.utils import secure_filename
 import pandas as pd
@@ -427,25 +427,46 @@ class KNR_Requirements(Resource):
                 return jsonify({'message':'Repository Not Found'}),
 
     @rlp.route('/refdownload/<int:id>')
+    @jwt_required()
     def refdownload(id):
         check_file = KNR.query.filter_by(id=id).first()
-        if check_file is not None:
-            filename = check_file.attachment_filename
-            filedata = check_file.attachment_data
+        if check_file is None:
+            return "File not found", 404
 
-            # Guess the mimetype based on the filename
-            mimetype, _ = mimetypes.guess_type(filename)
-            if mimetype is None:
-                mimetype = 'application/octet-stream'  # fallback
-                    
-            return send_file(
-                BytesIO(filedata), 
-                mimetype=mimetype,
-                download_name=filename,
-                as_attachment=True
-            )
-        # Handle file not found
-        return "File not found", 404
+        identity = get_jwt_identity()  # usually user_id or username
+        
+        # Fetch user details from DB based on identity (assuming identity is user_id)
+        user = User.query.filter_by(yash_id=identity).first()
+
+        ip_address = request.headers.get("X-Forwarded-For", request.remote_addr)
+        user_agent = request.headers.get("User-Agent")
+
+        log = DownloadLog(
+            user_id=user.id if user else None,
+            yash_id=user.yash_id if user else None,
+            username=user.name if user else None,
+            file_id=check_file.id,
+            filename=check_file.attachment_filename,
+            timestamp=datetime.utcnow(),
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        db.session.add(log)
+        db.session.commit()
+
+        filename = check_file.attachment_filename
+        filedata = check_file.attachment_data
+
+        mimetype, _ = mimetypes.guess_type(filename)
+        if mimetype is None:
+            mimetype = 'application/octet-stream'
+
+        return send_file(
+            BytesIO(filedata),
+            mimetype=mimetype,
+            download_name=filename,
+            as_attachment=True
+        )
 
 
     @rlp.route('/refview/<int:id>')
@@ -752,6 +773,42 @@ class KNR_Requirements(Resource):
         if check_user is not None and check_user.type == 'manager':
             get_logs = LoginLog.query.all()
             result = login_logs.dump(get_logs)
+            return jsonify(result)
+        
+        else:
+            return jsonify("Not Authorized"), 401
+        
+    @rlp.route('/getdownloadlogs', methods=['GET'])
+    @jwt_required()
+    def getdownloadlogs():
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+        if check_user is not None and check_user.type == 'Superadmin':
+            page = request.args.get('page', 1, type=int)
+            get_logs = DownloadLog.query.paginate(page=page, per_page=10)
+            result = download_logs.dump(get_logs)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            page = request.args.get('page', 1, type=int)
+            get_logs = DownloadLog.query.paginate(page=page, per_page=10)
+            result = download_logs.dump(get_logs)
+            return jsonify(result)
+        
+        else:
+            return jsonify("Not Authorized"), 401
+        
+    @rlp.route('/getdownloadlogrecords', methods=['GET'])
+    @jwt_required()
+    def getdownloadlogrecords():
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+        if check_user is not None and check_user.type == 'Superadmin':
+            get_logs = DownloadLog.query.all()
+            result = download_logs.dump(get_logs)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            get_logs = DownloadLog.query.all()
+            result = download_logs.dump(get_logs)
             return jsonify(result)
         
         else:

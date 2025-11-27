@@ -31,7 +31,9 @@ class KNR(db.Model):
     
 class DownloadLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.String(80), nullable=True)  # or Integer if user ids are integers
+    user_id = db.Column(db.String(80), nullable=True)
+    yash_id = db.Column(db.String(80), nullable=True)
+    username = db.Column(db.String(255), nullable=True)
     file_id = db.Column(db.Integer, nullable=False)
     filename = db.Column(db.String(255))
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
