@@ -321,7 +321,11 @@ class KNR_Requirements(Resource):
             approved_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Approved').count()
             unapproved_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Not Approved').count()
             sent_for_approval_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Sent for Approval').count()
-            
+        elif check_user is not None and check_user.type == 'manager':
+            total_repos = KNR.query.filter_by(user_id=check_user.id).count()
+            approved_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Approved').count()
+            unapproved_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Not Approved').count()
+            sent_for_approval_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Sent for Approval').count()
         else:
             return jsonify({"msg": "Unauthorized"}), 401
 
@@ -492,15 +496,72 @@ class KNR_Requirements(Resource):
 
     
 
-    @rlp.route('/repodatabymodule',methods=['GET'])
+    @rlp.route('/repodatabymodule', methods=['GET'])
+    @jwt_required()
     def data_by_module():
-        data = db.session.query(KNR.module_name, func.count(KNR.id)).group_by(KNR.module_name).all()
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+
+
+        if current_user is None:
+            return jsonify({"msg": "Unauthorized"}), 401
+
+        # Superadmin: all data
+        if check_user.type == 'Superadmin':
+            data = (
+                db.session.query(KNR.module_name, func.count(KNR.id))
+                .group_by(KNR.module_name)
+                .all()
+            )
+
+        # Manager: only their own data (by user_id)
+        elif check_user.type == 'manager':
+            data = (
+                db.session.query(KNR.module_name, func.count(KNR.id))
+                .filter(KNR.user_id == check_user.id)
+                .group_by(KNR.module_name)
+                .all()
+            )
+        elif check_user.type == 'user':
+            data = (
+                db.session.query(KNR.module_name, func.count(KNR.id))
+                .filter(KNR.user_id == check_user.id)
+                .group_by(KNR.module_name)
+                .all()
+            )
+
+        # Other types: not allowed (optional)
+        else:
+            return jsonify({"msg": "Forbidden"}), 403
+
         result = {module: count for module, count in data}
-        return jsonify(result)
+        return jsonify(result), 200
+
+        
 
     @rlp.route('/repodatabydomain', methods=['GET'])
+    @jwt_required()
     def data_by_domain():
-        data = db.session.query(KNR.domain, func.count(KNR.id)).group_by(KNR.domain).all()
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+
+
+        if current_user is None:
+            return jsonify({"msg": "Unauthorized"}), 401
+        
+        if check_user.type == 'Superadmin':
+            data = db.session.query(KNR.domain, func.count(KNR.id)).group_by(KNR.domain).all()
+            
+        
+        elif check_user.type == 'manager':
+            data = db.session.query(KNR.domain, func.count(KNR.id)).filter(KNR.user_id == check_user.id).group_by(KNR.domain).all()
+            
+        elif check_user.type == 'user':
+            data = db.session.query(KNR.domain, func.count(KNR.id)).filter(KNR.user_id == check_user.id).group_by(KNR.domain).all()
+            
+        else:
+            return jsonify({"msg": "Forbidden"}), 403
+        
         result = {domain: count for domain, count in data}
         return jsonify(result)
     

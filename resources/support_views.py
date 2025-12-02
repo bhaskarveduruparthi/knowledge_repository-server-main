@@ -9,6 +9,7 @@ from schemas.support_schema import questions
 from default_settings import db 
 import datetime
 from blueprints import slp
+from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 from extensions.BCRYPT import bcrypt
 
@@ -154,4 +155,29 @@ class Support(Resource):
         db.session.commit()
         return jsonify({'message': 'Answer created', 'answer_id': answer.id}), 201
 
-    
+    @slp.route('/top-users-votes', methods=['GET'])
+    def top_users_votes():
+        top_users = (
+            db.session.query(
+                Answer.username,
+                func.count(Answer.id).label('answer_count'),
+                func.sum(Answer.upvotes - Answer.downvotes).label('net_votes')
+            )
+            .group_by(Answer.username)
+            .order_by(func.sum(Answer.upvotes - Answer.downvotes).desc())
+            .limit(10)
+            .all()
+        )
+        
+        labels = [user.username for user in top_users]
+        data = [int(user.net_votes or 0) for user in top_users]
+        
+        return jsonify({
+            'labels': labels,
+            'datasets': [{
+                'label': 'Net Votes (Up - Down)',
+                'data': data,
+                'backgroundColor': ['#3e95cd', '#8e5ea2', '#3cba9f', '#e8c3b9', '#c45850', 
+                                '#36a2eb', '#ff6384', '#ffcd56', '#4bc0c0', '#9966ff']
+            }]
+        })

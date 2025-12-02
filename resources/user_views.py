@@ -49,7 +49,23 @@ class User_Requirements(Resource):
 
         if check_user.type == 'Superadmin':
             
-            posts = User.query.all()
+            posts = User.query.filter_by(type='user').all()
+            result = users.dump(posts)
+            return jsonify(result)
+        
+        else:
+            return jsonify("User not Authorized")
+        
+    @blp.route('/getallmanagers', methods=['GET'])
+    @jwt_required()
+    def getallmanagers():
+
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+
+        if check_user.type == 'Superadmin':
+            
+            posts = User.query.filter_by(type='manager').all()
             result = users.dump(posts)
             return jsonify(result)
         
