@@ -11,7 +11,7 @@ class User(db.Model):
     name = db.Column(db.String(length=100), nullable=False)
     email = db.Column(db.String(length=200), unique=True, nullable=False)
     b_unit = db.Column(db.String(length=40), nullable=False)
-    active = db.Column(db.String(length=1), default='Y',  nullable=False)
+    active = db.Column(db.String(length=1), default='Y',  nullable=True)
     type = db.Column(db.String(100), nullable=False)
     password = db.Column(db.String(length=100), nullable=False)
     created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
