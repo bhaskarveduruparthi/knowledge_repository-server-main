@@ -175,9 +175,10 @@ class Support(Resource):
         return jsonify({
             'labels': labels,
             'datasets': [{
-                'label': 'Net Votes (Up - Down)',
+                'label': 'Votes',
                 'data': data,
                 'backgroundColor': ['#3e95cd', '#8e5ea2', '#3cba9f', '#e8c3b9', '#c45850', 
                                 '#36a2eb', '#ff6384', '#ffcd56', '#4bc0c0', '#9966ff']
             }]
         })
+    

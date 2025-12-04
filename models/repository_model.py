@@ -22,9 +22,15 @@ class KNR(db.Model):
     Approval_status = db.Column(db.String(100), default="Not Approved")
     Approval_date = db.Column(db.Date)
     business_justification = db.Column(db.Text, nullable=True)
+    username = db.Column(db.String(length=100),default="NA", nullable=True)
+    irm = db.Column(db.String(length=100),default="NA", nullable=True)
+    srm = db.Column(db.String(length=100),default="NA", nullable=True)
+    buh = db.Column(db.String(length=100),default="NA", nullable=True)
+    bgh = db.Column(db.String(length=100),default="NA", nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
     rep_user_id = db.Column(db.Integer, nullable=False)
+
     
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
 

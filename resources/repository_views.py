@@ -108,6 +108,12 @@ class KNR_Requirements(Resource):
                 technical_details=data['technical_details'],
                 customer_benefit=data['customer_benefit'],
                 remarks=data['remarks'],
+                username = check_user.name,
+                irm = check_user.irm,
+                srm = check_user.srm,
+                buh = check_user.buh,
+                bgh = check_user.bgh,
+
                 rep_user_id = check_user.id,
                 user_id = check_user.id
             )
@@ -188,6 +194,11 @@ class KNR_Requirements(Resource):
                 customer_benefit=row.get('Customer benefit', ''),
                 remarks=row.get('Remarks', ''),
                 attach_code_or_document='UPLOADED',
+                username = check_user.name,
+                irm = check_user.irm,
+                srm = check_user.srm,
+                buh = check_user.buh,
+                bgh = check_user.bgh,
                 attachment_filename=None,
                 attachment_data=None,
                 rep_user_id=rep_user_id_value,
@@ -549,6 +560,7 @@ class KNR_Requirements(Resource):
                     KNR.remarks.ilike(f"%{word}%"),
                     KNR.customer_benefit.ilike(f"%{word}%"),
                     KNR.business_justification.ilike(f"%{word}%"),
+                    KNR.username.ilike(f"%{word}%")
                 )
                 for word in words
             ]
@@ -576,6 +588,7 @@ class KNR_Requirements(Resource):
                 "updated_at": r.updated_at.isoformat() if r.updated_at else None,
                 "rep_user_id": r.rep_user_id,
                 "user_id": r.user_id,
+                "username": r.username
             }
             for r in results
         ]
@@ -829,3 +842,29 @@ class KNR_Requirements(Resource):
         
         else:
             return jsonify("Not Authorized"), 401
+        
+    @rlp.route('/top-users-solutions', methods=['GET'])
+    def top_users_solutions():
+        top_users = (
+            db.session.query(
+                KNR.username,
+                func.count(KNR.id).label('solution_count')
+            )
+            .group_by(KNR.username)
+            .order_by(func.count(KNR.id).desc())
+            .limit(10)
+            .all()
+        )
+        
+        labels = [user.username for user in top_users]
+        data = [int(user.solution_count or 0) for user in top_users]
+        
+        return jsonify({
+            'labels': labels,
+            'datasets': [{
+                'label': 'Solutions',
+                'data': data,
+                'backgroundColor': ['#3e95cd', '#8e5ea2', '#3cba9f', '#e8c3b9', '#c45850', 
+                                '#36a2eb', '#ff6384', '#ffcd56', '#4bc0c0', '#9966ff']
+            }]
+        })

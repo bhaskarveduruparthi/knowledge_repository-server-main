@@ -11,6 +11,10 @@ class User(db.Model):
     name = db.Column(db.String(length=100), nullable=False)
     email = db.Column(db.String(length=200), unique=True, nullable=False)
     b_unit = db.Column(db.String(length=40), nullable=False)
+    irm = db.Column(db.String(length=100), nullable=True)
+    srm = db.Column(db.String(length=100), nullable=True)
+    buh = db.Column(db.String(length=100), nullable=True)
+    bgh = db.Column(db.String(length=100), nullable=True)
     active = db.Column(db.String(length=1), default='Y',  nullable=True)
     type = db.Column(db.String(100), nullable=False)
     password = db.Column(db.String(length=100), nullable=False)
@@ -22,13 +26,17 @@ class User(db.Model):
     
 
 
-    def  __init__(self,name, email, password, type, active, b_unit, yash_id):
+    def  __init__(self,name, email, password, type, irm, srm, buh,bgh, active, b_unit, yash_id):
 
        
         self.email = email,
         self.name = name,
         self.password = password
         self.type = type
+        self.irm = irm
+        self.srm = srm
+        self.buh = buh
+        self.bgh = bgh
         self.active = active
         self.b_unit = b_unit
         self.yash_id = yash_id
