@@ -167,7 +167,7 @@ class KNR_Requirements(Resource):
         relevant_columns = [
             'Customer name', 'Domain', 'Sector', 'Module Name', 'Detailed requirement',
             'Standard/Custom', 'Technical details(Z object name or Process developed/configured)',
-            'Customer benefit', 'Remarks', 'Attach the code or process document'
+            'Customer benefit', 'Remarks'
         ]
 
         def row_empty(row):
@@ -175,70 +175,25 @@ class KNR_Requirements(Resource):
 
         df = df.loc[~df.apply(row_empty, axis=1)].reset_index(drop=True)
 
-        # Extract embedded worksheets
-        workbook = load_workbook(filepath, data_only=True)
-        embedded_data = {}
-        for sheet_name in workbook.sheetnames:
-            sheet = workbook[sheet_name]
-            # Convert sheet to DataFrame
-            data = sheet.values
-            cols = next(data)
-            data = list(data)
-            df_sheet = pd.DataFrame(data, columns=cols)
-            # Convert DataFrame to Excel bytes
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df_sheet.to_excel(writer, sheet_name=sheet_name, index=False)
-            embedded_data[sheet_name] = output.getvalue()
-
-        # Process additional attached files
-        attachment_files = request.files.getlist('attachments')
-        attachment_map = {}
-        for f in attachment_files:
-            fname = secure_filename(f.filename)
-            attachment_map[fname] = f.read()
-
         records = []
         for _, row in df.iterrows():
-            # Save embedded worksheet
-            for sheet_name, sheet_data in embedded_data.items():
-                knr = KNR(
-                    customer_name=row.get('Customer name', ''),
-                    domain=row.get('Domain', ''),
-                    sector=row.get('Sector', ''),
-                    module_name=row.get('Module Name', ''),
-                    detailed_requirement=row.get('Detailed requirement', ''),
-                    standard_custom=row.get('Standard/Custom', ''),
-                    technical_details=row.get('Technical details(Z object name or Process developed/configured)', ''),
-                    customer_benefit=row.get('Customer benefit', ''),
-                    remarks=row.get('Remarks', ''),
-                    attach_code_or_document='UPLOADED',
-                    attachment_filename=sheet_name,
-                    attachment_data=sheet_data,
-                    rep_user_id=rep_user_id_value,
-                    user_id=rep_user_id_value
-                )
-                records.append(knr)
-
-            # Save additional attachments
-            for fname, fdata in attachment_map.items():
-                knr = KNR(
-                    customer_name=row.get('Customer name', ''),
-                    domain=row.get('Domain', ''),
-                    sector=row.get('Sector', ''),
-                    module_name=row.get('Module Name', ''),
-                    detailed_requirement=row.get('Detailed requirement', ''),
-                    standard_custom=row.get('Standard/Custom', ''),
-                    technical_details=row.get('Technical details(Z object name or Process developed/configured)', ''),
-                    customer_benefit=row.get('Customer benefit', ''),
-                    remarks=row.get('Remarks', ''),
-                    attach_code_or_document=fname,
-                    attachment_filename=fname,
-                    attachment_data=fdata,
-                    rep_user_id=rep_user_id_value,
-                    user_id=rep_user_id_value
-                )
-                records.append(knr)
+            knr = KNR(
+                customer_name=row.get('Customer name', ''),
+                domain=row.get('Domain', ''),
+                sector=row.get('Sector', ''),
+                module_name=row.get('Module Name', ''),
+                detailed_requirement=row.get('Detailed requirement', ''),
+                standard_custom=row.get('Standard/Custom', ''),
+                technical_details=row.get('Technical details(Z object name or Process developed/configured)', ''),
+                customer_benefit=row.get('Customer benefit', ''),
+                remarks=row.get('Remarks', ''),
+                attach_code_or_document='UPLOADED',
+                attachment_filename=None,
+                attachment_data=None,
+                rep_user_id=rep_user_id_value,
+                user_id=rep_user_id_value
+            )
+            records.append(knr)
 
         if not records:
             return jsonify({'error': 'No valid data rows found in Excel'}), 400
@@ -313,18 +268,18 @@ class KNR_Requirements(Resource):
         if check_user is not None and check_user.type == 'Superadmin':
             total_repos = KNR.query.count()
             approved_repos = KNR.query.filter_by(Approval_status='Approved').count()
-            unapproved_repos = KNR.query.filter_by(Approval_status='Not Approved').count()
+            unapproved_repos = KNR.query.filter_by(Approval_status='Rejected').count()
             sent_for_approval_repos = KNR.query.filter_by(Approval_status='Sent for Approval').count()
             
         elif check_user is not None and check_user.type == 'user':
             total_repos = KNR.query.filter_by(user_id=check_user.id).count()
             approved_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Approved').count()
-            unapproved_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Not Approved').count()
+            unapproved_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Rejected').count()
             sent_for_approval_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Sent for Approval').count()
         elif check_user is not None and check_user.type == 'manager':
             total_repos = KNR.query.filter_by(user_id=check_user.id).count()
             approved_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Approved').count()
-            unapproved_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Not Approved').count()
+            unapproved_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Rejected').count()
             sent_for_approval_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Sent for Approval').count()
         else:
             return jsonify({"msg": "Unauthorized"}), 401
