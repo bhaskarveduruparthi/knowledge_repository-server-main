@@ -1,5 +1,6 @@
 from default_settings import db
-from datetime import datetime
+import datetime
+from datetime import datetime, timezone
 from models.user_model import User
 
 class KNR(db.Model):
@@ -19,7 +20,7 @@ class KNR(db.Model):
     attachment_data = db.Column(db.LargeBinary(length=65536))
     attachment_filename = db.Column(db.String(255), nullable=True)
     Approver = db.Column(db.String(100), default="NA", nullable=True)
-    Approval_status = db.Column(db.String(100), default="Not Approved")
+    Approval_status = db.Column(db.String(100), default="Pending")
     Approval_date = db.Column(db.Date)
     business_justification = db.Column(db.Text, nullable=True)
     username = db.Column(db.String(length=100),default="NA", nullable=True)
@@ -33,6 +34,7 @@ class KNR(db.Model):
 
     
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    
 
     
 class DownloadLog(db.Model):
@@ -45,3 +47,20 @@ class DownloadLog(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     ip_address = db.Column(db.String(45))
     user_agent = db.Column(db.String(256))
+
+class DownloadRequest(db.Model):
+    __tablename__ = 'download_request'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    knr_id = db.Column(db.Integer, db.ForeignKey('knr.id'), nullable=False)
+    requested_by_name = db.Column(db.String(100), nullable=False)  # NEW
+    requested_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    requested_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    status = db.Column(db.String(50), default='Pending', nullable=False)  # Pending / Approved / Rejected
+    approved_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    approved_at = db.Column(db.DateTime, nullable=True)
+    justification = db.Column(db.Text, nullable=True)
+
+    knr = db.relationship('KNR', backref='download_requests', foreign_keys=[knr_id])
+    requester = db.relationship('User', foreign_keys=[requested_by])
+    approver = db.relationship('User', foreign_keys=[approved_by])

@@ -49,7 +49,7 @@ class User_Requirements(Resource):
 
         if check_user.type == 'Superadmin':
             
-            posts = User.query.filter_by(type='user').all()
+            posts = User.query.all()
             result = users.dump(posts)
             return jsonify(result)
         

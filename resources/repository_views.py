@@ -1,9 +1,10 @@
+import io
 import mimetypes
 from flask import Response, request, jsonify, send_file
 from flask_restful import Resource
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models.user_model import LoginLog, User
-from models.repository_model import KNR, DownloadLog
+from models.user_model import  LoginLog, User
+from models.repository_model import KNR, DownloadLog, DownloadRequest
 from schemas.repository_schema import knr, knrs
 from schemas.user_schema import user, users
 from schemas.support_schema import login_log, login_logs, download_log, download_logs
@@ -18,6 +19,7 @@ from sqlalchemy import func
 import numpy as np
 from openpyxl import load_workbook
 from io import BytesIO
+
 
 FILTER_COLUMN_MAP = {
     "Domain": "domain",
@@ -38,25 +40,111 @@ class KNR_Requirements(Resource):
     @rlp.route('/getallrepos', methods=['GET'])
     @jwt_required()
     def getallrepos():
-        current_user = get_jwt_identity()
-        check_user = User.query.filter_by(yash_id=current_user).first()
-        if check_user is not None and check_user.type == 'Superadmin':
+        currentuser = get_jwt_identity()
+        checkuser = User.query.filter_by(yash_id=currentuser).first()
+
+        if checkuser is not None and checkuser.type == 'Superadmin':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.paginate(page=page, per_page=10)
-            result = knrs.dump(get_repos)
+            getrepos = KNR.query.filter_by(Approval_status='Approved').paginate(page=page, per_page=10)
+            result = []
+            for r in getrepos.items:
+                result.append({
+                    'id': r.id,
+                    'customer_name': r.customer_name,
+                    'domain': r.domain,
+                    'sector': r.sector,
+                    'module_name': r.module_name,
+                    'detailed_requirement': r.detailed_requirement,
+                    'standard_custom': r.standard_custom,
+                    'technical_details': r.technical_details,
+                    'customer_benefit': r.customer_benefit,
+                    'remarks': r.remarks,
+                    'attach_code_or_document': r.attach_code_or_document,
+                    'attachment_filename': r.attachment_filename,
+                    'Approval_status': r.Approval_status,
+                    'irm': r.irm,
+                    'srm': r.srm,
+                    'buh': r.buh,
+                    'bgh': r.bgh,
+                    'username': r.username,
+                    'created_at': r.created_at,
+                    'download_approved': True  # Superadmin can always download
+                })
             return jsonify(result)
-        if check_user is not None and check_user.type == 'manager':
+
+        if checkuser is not None and checkuser.type == 'manager':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.paginate(page=page, per_page=10)
-            result = knrs.dump(get_repos)
+            getrepos = KNR.query.filter_by(Approval_status='Approved').paginate(page=page, per_page=10)
+            result = []
+            for r in getrepos.items:
+                approved_req = DownloadRequest.query.filter_by(
+                    knr_id=r.id,
+                    requested_by=checkuser.id,
+                    status='Approved'
+                ).first() is not None
+            
+                result.append({
+                    'id': r.id,
+                    'customer_name': r.customer_name,
+                    'domain': r.domain,
+                    'sector': r.sector,
+                    'module_name': r.module_name,
+                    'detailed_requirement': r.detailed_requirement,
+                    'standard_custom': r.standard_custom,
+                    'technical_details': r.technical_details,
+                    'customer_benefit': r.customer_benefit,
+                    'remarks': r.remarks,
+                    'attach_code_or_document': r.attach_code_or_document,
+                    'attachment_filename': r.attachment_filename,
+                    'Approval_status': r.Approval_status,
+                    'irm': r.irm,
+                    'srm': r.srm,
+                    'buh': r.buh,
+                    'bgh': r.bgh,
+                    'username': r.username,
+                    'created_at': r.created_at,
+                    'download_approved': approved_req  
+                })
             return jsonify(result)
-        elif check_user is not None and check_user.type == 'user':
+
+        elif checkuser is not None and checkuser.type == 'user':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(user_id=check_user.id).paginate(page=page, per_page=10)
-            result = knrs.dump(get_repos)
+            getrepos = KNR.query.filter_by(user_id=checkuser.id).paginate(page=page, per_page=10)
+            result = []
+            for r in getrepos.items:
+                approved_req = DownloadRequest.query.filter_by(
+                    knr_id=r.id,
+                    requested_by=checkuser.id,
+                    status='Approved'
+                ).first() is not None
+
+                result.append({
+                    'id': r.id,
+                    'customer_name': r.customer_name,
+                    'domain': r.domain,
+                    'sector': r.sector,
+                    'module_name': r.module_name,
+                    'detailed_requirement': r.detailed_requirement,
+                    'standard_custom': r.standard_custom,
+                    'technical_details': r.technical_details,
+                    'customer_benefit': r.customer_benefit,
+                    'remarks': r.remarks,
+                    'attach_code_or_document': r.attach_code_or_document,
+                    'attachment_filename': r.attachment_filename,
+                    'Approval_status': r.Approval_status,
+                    'irm': r.irm,
+                    'srm': r.srm,
+                    'buh': r.buh,
+                    'bgh': r.bgh,
+                    'username': r.username,
+                    'created_at': r.created_at,
+                    'download_approved': approved_req
+                })
             return jsonify(result)
+
         else:
             return jsonify("Not Authorized"), 401
+
 
     @rlp.route('/getapprovalrepos', methods=['GET'])
     @jwt_required()
@@ -65,7 +153,12 @@ class KNR_Requirements(Resource):
         check_user = User.query.filter_by(yash_id=current_user).first()
         if check_user is not None and check_user.type == 'Superadmin':
             
-            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').all()
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',Approver=check_user.name).all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',Approver=check_user.name).all()
             result = knrs.dump(get_repos)
             return jsonify(result)
         else:
@@ -109,6 +202,8 @@ class KNR_Requirements(Resource):
                 customer_benefit=data['customer_benefit'],
                 remarks=data['remarks'],
                 username = check_user.name,
+                Approver = check_user.irm,
+                Approval_status = 'Sent for Approval',
                 irm = check_user.irm,
                 srm = check_user.srm,
                 buh = check_user.buh,
@@ -130,11 +225,11 @@ class KNR_Requirements(Resource):
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
         if check_user is not None and check_user.type == 'Superadmin':
-            get_repos = KNR.query.all()
+            get_repos = KNR.query.filter_by(Approval_status='Approved').all()
             result = knrs.dump(get_repos)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
-            get_repos = KNR.query.all()
+            get_repos = KNR.query.filter_by(Approval_status='Approved').all()
             result = knrs.dump(get_repos)
             return jsonify(result)
         elif check_user is not None and check_user.type == 'user':
@@ -195,6 +290,8 @@ class KNR_Requirements(Resource):
                 remarks=row.get('Remarks', ''),
                 attach_code_or_document='UPLOADED',
                 username = check_user.name,
+                Approver = check_user.irm,
+                Approval_status = 'Sent for Approval',
                 irm = check_user.irm,
                 srm = check_user.srm,
                 buh = check_user.buh,
@@ -220,9 +317,8 @@ class KNR_Requirements(Resource):
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
 
-        if check_repo is not None and check_user.type == 'Superadmin':
+        if check_repo is not None:
             check_repo.Approval_status = "Approved"
-            check_repo.Approver = check_user.name
             check_repo.Approval_date = datetime.utcnow().date()
             db.session.commit()
             return jsonify("Status of the Repo Changed")
@@ -403,20 +499,26 @@ class KNR_Requirements(Resource):
         if check_file is None:
             return "File not found", 404
 
-        identity = get_jwt_identity()  # usually user_id or username
-        
-        # Fetch user details from DB based on identity (assuming identity is user_id)
+        # Ensure attachment exists
+        if not check_file.attachment_data:
+            return "No attachment found for this repository", 404
+
+        # Get identity (you store yash_id in the token)
+        identity = get_jwt_identity()
+
+        # Fetch user based on yash_id
         user = User.query.filter_by(yash_id=identity).first()
 
         ip_address = request.headers.get("X-Forwarded-For", request.remote_addr)
         user_agent = request.headers.get("User-Agent")
 
+        # Only log user fields if user exists
         log = DownloadLog(
             user_id=user.id if user else None,
             yash_id=user.yash_id if user else None,
             username=user.name if user else None,
             file_id=check_file.id,
-            filename=check_file.attachment_filename,
+            filename=check_file.attachment_filename or f"repository_{check_file.id}",
             timestamp=datetime.utcnow(),
             ip_address=ip_address,
             user_agent=user_agent,
@@ -424,18 +526,20 @@ class KNR_Requirements(Resource):
         db.session.add(log)
         db.session.commit()
 
-        filename = check_file.attachment_filename
+        # Prepare filename and data
+        filename = check_file.attachment_filename or f"repository_{check_file.id}"
         filedata = check_file.attachment_data
 
+        # Guess mimetype safely
         mimetype, _ = mimetypes.guess_type(filename)
         if mimetype is None:
-            mimetype = 'application/octet-stream'
+            mimetype = "application/octet-stream"
 
         return send_file(
             BytesIO(filedata),
             mimetype=mimetype,
             download_name=filename,
-            as_attachment=True
+            as_attachment=True,
         )
 
 
@@ -541,30 +645,31 @@ class KNR_Requirements(Resource):
         if not query_text:
             return jsonify({"error": "query is required"}), 400
 
-        if selected_filter and selected_filter in FILTER_COLUMN_MAP:
+        # Normalize query once
+        q = f"%{query_text}%"
+
+        if selected_filter and selected_filter in FILTER_COLUMN_MAP and selected_filter != "Any":
+            # Specific field search
             column_name = FILTER_COLUMN_MAP[selected_filter]
             column = getattr(KNR, column_name)
-            results = KNR.query.filter(column.ilike(f"%{query_text}%")).all()
+            results = KNR.query.filter(column.ilike(q)).all()
         else:
-            # Split the query into words for more flexible matching
-            words = query_text.split()
-            filters = [
+            # "any" or no filter -> search in all relevant fields with the whole query string
+            results = KNR.query.filter(
                 or_(
-                    KNR.domain.ilike(f"%{word}%"),
-                    KNR.module_name.ilike(f"%{word}%"),
-                    KNR.customer_name.ilike(f"%{word}%"),
-                    KNR.sector.ilike(f"%{word}%"),
-                    KNR.standard_custom.ilike(f"%{word}%"),
-                    KNR.technical_details.ilike(f"%{word}%"),
-                    KNR.detailed_requirement.ilike(f"%{word}%"),
-                    KNR.remarks.ilike(f"%{word}%"),
-                    KNR.customer_benefit.ilike(f"%{word}%"),
-                    KNR.business_justification.ilike(f"%{word}%"),
-                    KNR.username.ilike(f"%{word}%")
+                    KNR.domain.ilike(q),
+                    KNR.module_name.ilike(q),
+                    KNR.customer_name.ilike(q),
+                    KNR.sector.ilike(q),
+                    KNR.standard_custom.ilike(q),
+                    KNR.technical_details.ilike(q),
+                    KNR.detailed_requirement.ilike(q),
+                    KNR.remarks.ilike(q),
+                    KNR.customer_benefit.ilike(q),
+                    KNR.business_justification.ilike(q),
+                    KNR.username.ilike(q),
                 )
-                for word in words
-            ]
-            results = KNR.query.filter(or_(*filters)).all()
+            ).all()
 
         data = [
             {
@@ -588,12 +693,13 @@ class KNR_Requirements(Resource):
                 "updated_at": r.updated_at.isoformat() if r.updated_at else None,
                 "rep_user_id": r.rep_user_id,
                 "user_id": r.user_id,
-                "username": r.username
+                "username": r.username,
             }
             for r in results
         ]
 
         return jsonify(data), 200
+
 
 
     @rlp.route('/getallapprovedrepos', methods=['GET'])
@@ -608,7 +714,7 @@ class KNR_Requirements(Resource):
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Approved').paginate(page=page, per_page=10)
+            get_repos = KNR.query.filter_by(Approval_status='Approved', Approver=check_user.name).paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         elif check_user is not None and check_user.type == 'user':
@@ -629,7 +735,7 @@ class KNR_Requirements(Resource):
             result = knrs.dump(get_repos)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
-            get_repos = KNR.query.filter_by(Approval_status='Approved').all()
+            get_repos = KNR.query.filter_by(Approval_status='Approved', Approver=check_user.name).all()
             result = knrs.dump(get_repos)
             return jsonify(result)
         elif check_user is not None and check_user.type == 'user':
@@ -652,7 +758,7 @@ class KNR_Requirements(Resource):
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').paginate(page=page, per_page=10)
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval', Approver=check_user.name).paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         elif check_user is not None and check_user.type == 'user':
@@ -673,7 +779,7 @@ class KNR_Requirements(Resource):
             result = knrs.dump(get_repos)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
-            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').all()
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',Approver=check_user.name).all()
             result = knrs.dump(get_repos)
             return jsonify(result)
         elif check_user is not None and check_user.type == 'user':
@@ -691,17 +797,17 @@ class KNR_Requirements(Resource):
         check_user = User.query.filter_by(yash_id=current_user).first()
         if check_user is not None and check_user.type == 'Superadmin':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Not Approved').paginate(page=page, per_page=10)
+            get_repos = KNR.query.filter_by(Approval_status='Pending').paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Not Approved').paginate(page=page, per_page=10)
+            get_repos = KNR.query.filter_by(Approval_status='Pending', Approver='check_user.name').paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         elif check_user is not None and check_user.type == 'user':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Not Approved',user_id=check_user.id).paginate(page=page, per_page=10)
+            get_repos = KNR.query.filter_by(Approval_status='Pending',user_id=check_user.id).paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         else:
@@ -713,15 +819,15 @@ class KNR_Requirements(Resource):
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
         if check_user is not None and check_user.type == 'Superadmin':
-            get_repos = KNR.query.filter_by(Approval_status='Not Approved').all()
+            get_repos = KNR.query.filter_by(Approval_status='Pending').all()
             result = knrs.dump(get_repos)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
-            get_repos = KNR.query.filter_by(Approval_status='Not Approved').all()
+            get_repos = KNR.query.filter_by(Approval_status='Pending', Approver='check_user.name').all()
             result = knrs.dump(get_repos)
             return jsonify(result)
         elif check_user is not None and check_user.type == 'user':
-            get_repos = KNR.query.filter_by(Approval_status='Not Approved',user_id=check_user.id).all()
+            get_repos = KNR.query.filter_by(Approval_status='Pending',user_id=check_user.id).all()
             result = knrs.dump(get_repos)
             return jsonify(result)
         else:
@@ -740,7 +846,7 @@ class KNR_Requirements(Resource):
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Rejected').paginate(page=page, per_page=10)
+            get_repos = KNR.query.filter_by(Approval_status='Rejected', Approver=check_user.name).paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         elif check_user is not None and check_user.type == 'user':
@@ -761,7 +867,7 @@ class KNR_Requirements(Resource):
             result = knrs.dump(get_repos)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
-            get_repos = KNR.query.filter_by(Approval_status='Rejected').all()
+            get_repos = KNR.query.filter_by(Approval_status='Rejected', Approver=check_user.name).all()
             result = knrs.dump(get_repos)
             return jsonify(result)
         elif check_user is not None and check_user.type == 'user':
@@ -868,3 +974,156 @@ class KNR_Requirements(Resource):
                                 '#36a2eb', '#ff6384', '#ffcd56', '#4bc0c0', '#9966ff']
             }]
         })
+
+    @rlp.route('/download-request/<int:id>', methods=['POST'])
+    @jwt_required()
+    def create_download_request(id):
+        # JWT identity is yash_id in your app
+        identity = get_jwt_identity()  # e.g. '1100032'
+        user = User.query.filter_by(yash_id=identity).first_or_404()
+
+        data = request.get_json() or {}
+        justification = data.get('justification', '')
+
+        knr = KNR.query.get_or_404(id)
+
+        existing = DownloadRequest.query.filter_by(
+            knr_id=knr.id,
+            requested_by=user.id,
+            status='Pending'
+        ).first()
+        if existing:
+            return jsonify({'message': 'Request already pending'}), 400
+
+        req = DownloadRequest(
+            knr_id=knr.id,
+            requested_by=user.id,
+            requested_by_name=user.name,
+            justification=justification
+        )
+        db.session.add(req)
+        db.session.commit()
+
+        return jsonify({'message': 'Download request sent to Superadmin'}), 200
+
+
+
+    @rlp.route('/download-requests', methods=['GET'])
+    @jwt_required()
+    def list_download_requests():
+        identity = get_jwt_identity()  # yash_id
+        user = User.query.filter_by(yash_id=identity).first_or_404()
+        if user.type != 'Superadmin':
+            return jsonify({'message': 'Forbidden'}), 403
+
+        reqs = DownloadRequest.query.order_by(DownloadRequest.requested_at.desc()).all()
+        result = []
+        for r in reqs:
+            result.append({
+                'id': r.id,
+                'status': r.status,
+                'requested_at': r.requested_at.isoformat() if r.requested_at else None,
+                'justification': r.justification,
+                'knr_id': r.knr_id,
+                'repo_customer_name': r.knr.customer_name if r.knr else None,
+                'repo_module_name': r.knr.module_name if r.knr else None,
+                'requested_by_name': r.requested_by_name,
+                'requested_by_email': r.requester.email if r.requester else None,
+            })
+        return jsonify(result), 200
+
+
+
+
+    @rlp.route('/download-requests/<int:id>/approve', methods=['POST'])
+    @jwt_required()
+    def approve_download_request(id):
+        identity = get_jwt_identity()  # yash_id
+        approver = User.query.filter_by(yash_id=identity).first_or_404()
+
+        req = DownloadRequest.query.get_or_404(id)
+        if req.status != 'Pending':
+            return jsonify({'message': 'Already processed'}), 400
+
+        req.status = 'Approved'
+        req.approved_by = approver.id
+        req.approved_at = datetime.utcnow()
+        db.session.commit()
+
+        return jsonify({'message': 'Request approved'}), 200
+
+
+    @rlp.route('/download-requests/<int:id>/reject', methods=['POST'])
+    @jwt_required()
+    def reject_download_request(id):
+        identity = get_jwt_identity()  # yash_id
+        approver = User.query.filter_by(yash_id=identity).first_or_404()
+
+        req = DownloadRequest.query.get_or_404(id)
+        if req.status != 'Pending':
+            return jsonify({'message': 'Already processed'}), 400
+
+        req.status = 'Rejected'
+        req.approved_by = approver.id
+        req.approved_at = datetime.utcnow()
+        db.session.commit()
+
+        return jsonify({'message': 'Request rejected'}), 200
+
+
+    
+
+    @rlp.route('/repos/refdownload/<int:id>', methods=['GET'])
+    @jwt_required()
+    def download_repo(id):
+        # Here identity is yash_id in your current code; fetch user by yash_id
+        identity = get_jwt_identity()
+        user = User.query.filter_by(yash_id=identity).first_or_404()
+
+        knr = KNR.query.get_or_404(id)
+
+        # Superadmin bypass
+        if user.type != 'Superadmin':
+            approved_req = DownloadRequest.query.filter_by(
+                knr_id=knr.id,
+                requested_by=user.id,
+                status='Approved'
+            ).first()
+            if not approved_req:
+                return jsonify({'message': 'Download not approved for this repository'}), 403
+
+        if not knr.attachment_data:
+            return jsonify({'message': 'No file attached'}, 404)
+
+        # log download
+        ip_address = request.headers.get("X-Forwarded-For", request.remote_addr)
+        user_agent = request.headers.get("User-Agent")
+
+        log = DownloadLog(
+            user_id=user.id,
+            yash_id=user.yash_id,
+            username=user.name,
+            file_id=knr.id,
+            filename=knr.attachment_filename or f"repository_{knr.id}",
+            timestamp=datetime.utcnow(),
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+        db.session.add(log)
+        db.session.commit()
+
+        filename = knr.attachment_filename or f"repository_{knr.id}"
+        filedata = knr.attachment_data
+
+        mimetype, _ = mimetypes.guess_type(filename)
+        if mimetype is None:
+            mimetype = 'application/octet-stream'
+
+        return send_file(
+            io.BytesIO(filedata),
+            mimetype=mimetype,
+            download_name=filename,
+            as_attachment=True
+        )
+
+

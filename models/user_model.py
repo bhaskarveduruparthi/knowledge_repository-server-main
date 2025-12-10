@@ -26,17 +26,13 @@ class User(db.Model):
     
 
 
-    def  __init__(self,name, email, password, type, irm, srm, buh,bgh, active, b_unit, yash_id):
+    def  __init__(self,name, email, password, type,active, b_unit, yash_id):
 
        
         self.email = email,
         self.name = name,
         self.password = password
         self.type = type
-        self.irm = irm
-        self.srm = srm
-        self.buh = buh
-        self.bgh = bgh
         self.active = active
         self.b_unit = b_unit
         self.yash_id = yash_id
@@ -49,3 +45,5 @@ class LoginLog(db.Model):
     user_agent = db.Column(db.String(256))
     success = db.Column(db.Boolean)  # True if login successful, False otherwise
     message = db.Column(db.String(255))  # optional message
+
+
