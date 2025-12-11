@@ -373,10 +373,10 @@ class KNR_Requirements(Resource):
         check_user = User.query.filter_by(yash_id=current_user).first()
 
         if check_user is not None and check_user.type == 'Superadmin':
-            total_repos = KNR.query.count()
-            approved_repos = KNR.query.filter_by(Approval_status='Approved').count()
-            unapproved_repos = KNR.query.filter_by(Approval_status='Rejected').count()
-            sent_for_approval_repos = KNR.query.filter_by(Approval_status='Sent for Approval').count()
+            total_repos = KNR.query.filter_by(Approval_status='Approved').count()
+            approved_repos = KNR.query.filter_by(Approval_status='Approved', Approver=check_user.name).count()
+            unapproved_repos = KNR.query.filter_by(Approval_status='Rejected', Approver=check_user.name).count()
+            sent_for_approval_repos = KNR.query.filter_by(Approval_status='Sent for Approval', Approver=check_user.name).count()
             
         elif check_user is not None and check_user.type == 'user':
             total_repos = KNR.query.filter_by(user_id=check_user.id).count()
@@ -447,7 +447,7 @@ class KNR_Requirements(Resource):
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
 
-        if check_user is not None:
+        if check_user is not None and check_user.type == 'Superadmin':
 
             check_repo = KNR.query.filter_by(id=id).first()
             if check_repo is not None:
@@ -580,6 +580,7 @@ class KNR_Requirements(Resource):
         if check_user.type == 'Superadmin':
             data = (
                 db.session.query(KNR.module_name, func.count(KNR.id))
+                .filter(KNR.Approval_status == 'Approved')
                 .group_by(KNR.module_name)
                 .all()
             )
@@ -588,7 +589,7 @@ class KNR_Requirements(Resource):
         elif check_user.type == 'manager':
             data = (
                 db.session.query(KNR.module_name, func.count(KNR.id))
-                .filter(KNR.user_id == check_user.id)
+                .filter(KNR.Approval_status == 'Approved')
                 .group_by(KNR.module_name)
                 .all()
             )
@@ -620,11 +621,11 @@ class KNR_Requirements(Resource):
             return jsonify({"msg": "Unauthorized"}), 401
         
         if check_user.type == 'Superadmin':
-            data = db.session.query(KNR.domain, func.count(KNR.id)).group_by(KNR.domain).all()
+            data = db.session.query(KNR.domain, func.count(KNR.id)).filter(KNR.Approval_status == 'Approved').group_by(KNR.domain).all()
             
         
         elif check_user.type == 'manager':
-            data = db.session.query(KNR.domain, func.count(KNR.id)).filter(KNR.user_id == check_user.id).group_by(KNR.domain).all()
+            data = db.session.query(KNR.domain, func.count(KNR.id)).filter(KNR.Approval_status == 'Approved').group_by(KNR.domain).all()
             
         elif check_user.type == 'user':
             data = db.session.query(KNR.domain, func.count(KNR.id)).filter(KNR.user_id == check_user.id).group_by(KNR.domain).all()
@@ -648,14 +649,16 @@ class KNR_Requirements(Resource):
         # Normalize query once
         q = f"%{query_text}%"
 
+        base_query = KNR.query.filter_by(Approval_status='Approved')
+
         if selected_filter and selected_filter in FILTER_COLUMN_MAP and selected_filter != "Any":
             # Specific field search
             column_name = FILTER_COLUMN_MAP[selected_filter]
             column = getattr(KNR, column_name)
-            results = KNR.query.filter(column.ilike(q)).all()
+            results = base_query.filter(column.ilike(q)).all()
         else:
             # "any" or no filter -> search in all relevant fields with the whole query string
-            results = KNR.query.filter(
+            results = base_query.filter(
                 or_(
                     KNR.domain.ilike(q),
                     KNR.module_name.ilike(q),
