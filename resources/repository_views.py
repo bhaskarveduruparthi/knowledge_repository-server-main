@@ -246,13 +246,13 @@ class KNR_Requirements(Resource):
     @jwt_required()
     def upload_excel():
         if 'file' not in request.files:
-            return jsonify({'error': 'No file part'}), 400
+            return jsonify({'error': 'No file part'}), 401
 
         excel_file = request.files['file']
         if excel_file.filename == '':
-            return jsonify({'error': 'No selected file'}), 400
+            return jsonify({'error': 'No selected file'}), 402
         if not allowed_file(excel_file.filename):
-            return jsonify({'error': 'Invalid file format'}), 400
+            return jsonify({'error': 'Invalid file format'}), 403
 
         filename = secure_filename(excel_file.filename)
         if not os.path.exists(UPLOAD_FOLDER):
@@ -403,10 +403,10 @@ class KNR_Requirements(Resource):
             return jsonify({
                 'error': 'Validation failed for the following rows:',
                 'details': invalid_rows
-            }), 400
+            }), 404
 
         if not records:
-            return jsonify({'error': 'No valid data rows found in Excel'}), 400
+            return jsonify({'error': 'No valid data rows found in Excel'}), 405
 
         db.session.add_all(records)
         db.session.commit()
