@@ -15,7 +15,6 @@ class KNR(db.Model):
     standard_custom = db.Column(db.String(100), nullable=False)
     technical_details = db.Column(db.Text, nullable=False)
     customer_benefit = db.Column(db.Text, nullable=False)
-    remarks = db.Column(db.Text, nullable=False)
     attach_code_or_document = db.Column(db.String(255), default="Not Attached")
     attachment_data = db.Column(db.LargeBinary(length=65536))
     attachment_filename = db.Column(db.String(255), nullable=True)

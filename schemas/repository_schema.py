@@ -16,7 +16,6 @@ class KNR_Schema(Schema):
     standard_custom = fields.String(required=True)
     technical_details = fields.String(required=True)
     customer_benefit = fields.String(required=True)
-    remarks = fields.String(required=True)
     attach_code_or_document = fields.String()
     created_at = fields.DateTime()
     updated_at = fields.DateTime()

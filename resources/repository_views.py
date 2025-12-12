@@ -26,7 +26,6 @@ FILTER_COLUMN_MAP = {
     "Module": "module_name",
     "Customer Name": "customer_name",
     "Sector": "sector",
-    "Standard/Custom": "standard_custom",
 }
 
 UPLOAD_FOLDER = 'uploads'
@@ -58,10 +57,10 @@ class KNR_Requirements(Resource):
                     'standard_custom': r.standard_custom,
                     'technical_details': r.technical_details,
                     'customer_benefit': r.customer_benefit,
-                    'remarks': r.remarks,
                     'attach_code_or_document': r.attach_code_or_document,
                     'attachment_filename': r.attachment_filename,
                     'Approval_status': r.Approval_status,
+                    'Approver': r.Approver,
                     'irm': r.irm,
                     'srm': r.srm,
                     'buh': r.buh,
@@ -93,10 +92,10 @@ class KNR_Requirements(Resource):
                     'standard_custom': r.standard_custom,
                     'technical_details': r.technical_details,
                     'customer_benefit': r.customer_benefit,
-                    'remarks': r.remarks,
                     'attach_code_or_document': r.attach_code_or_document,
                     'attachment_filename': r.attachment_filename,
                     'Approval_status': r.Approval_status,
+                    'Approver': r.Approver,
                     'irm': r.irm,
                     'srm': r.srm,
                     'buh': r.buh,
@@ -128,10 +127,10 @@ class KNR_Requirements(Resource):
                     'standard_custom': r.standard_custom,
                     'technical_details': r.technical_details,
                     'customer_benefit': r.customer_benefit,
-                    'remarks': r.remarks,
                     'attach_code_or_document': r.attach_code_or_document,
                     'attachment_filename': r.attachment_filename,
                     'Approval_status': r.Approval_status,
+                    'Approver': r.Approver,
                     'irm': r.irm,
                     'srm': r.srm,
                     'buh': r.buh,
@@ -153,7 +152,7 @@ class KNR_Requirements(Resource):
         check_user = User.query.filter_by(yash_id=current_user).first()
         if check_user is not None and check_user.type == 'Superadmin':
             
-            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',Approver=check_user.name).all()
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').all()
             result = knrs.dump(get_repos)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
@@ -173,6 +172,11 @@ class KNR_Requirements(Resource):
             get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').all()
             result = knrs.dump(get_repos)
             return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',Approver=check_user.name).all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
 
@@ -186,7 +190,7 @@ class KNR_Requirements(Resource):
 
             data = request.json
             required_fields = ['customer_name', 'domain', 'sector', 'module_name', 'detailed_requirement',
-                            'standard_custom', 'technical_details', 'customer_benefit', 'remarks']
+                            'standard_custom', 'technical_details', 'customer_benefit']
             missing_fields = [field for field in required_fields if field not in data or not data[field]]
             if missing_fields:
                 return jsonify({'error': 'Missing required fields', 'fields': missing_fields}), 400
@@ -200,7 +204,6 @@ class KNR_Requirements(Resource):
                 standard_custom=data['standard_custom'],
                 technical_details=data['technical_details'],
                 customer_benefit=data['customer_benefit'],
-                remarks=data['remarks'],
                 username = check_user.name,
                 Approver = check_user.irm,
                 Approval_status = 'Sent for Approval',
@@ -268,7 +271,7 @@ class KNR_Requirements(Resource):
         relevant_columns = [
             'Customer name', 'Domain', 'Sector', 'Module Name', 'Detailed requirement',
             'Standard/Custom', 'Technical details(Z object name or Process developed/configured)',
-            'Customer benefit', 'Remarks'
+            'Customer benefit'
         ]
 
         def row_empty(row):
@@ -276,39 +279,116 @@ class KNR_Requirements(Resource):
 
         df = df.loc[~df.apply(row_empty, axis=1)].reset_index(drop=True)
 
+        # Validation lists
+        module_options = [
+            'FI: Financial Accounting', 'CO: Controlling', 'MM: Materials Management',
+            'SD: Sales and Distribution', 'HCM: Human Capital Management', 'PP: Production Planning',
+            'PM: Plant Maintenance', 'QM: Quality Management', 'PS: Project System',
+            'FSCM: Financial Supply Chain Management', 'SRM: Supplier Relationship Management',
+            'CRM: Customer Relationship Management', 'LE: Logistics Execution', 'WM: Warehouse Management',
+            'EWM: Extended Warehouse Management', 'TRM: Treasury and Risk Management', 'FM: Funds Management',
+            'IM: Investment Management', 'PLM: Product Lifecycle Management',
+            'BI/BW: Business Intelligence / Business Warehouse', 'GRC: Governance, Risk, and Compliance',
+            'MDM: Master Data Management', 'EHS: Environment, Health, and Safety',
+            'SEM: Strategic Enterprise Management', 'BASIS: SAP Basis (technical administration)',
+            'ABAP: Advanced Business Application Programming (development)',
+            'PI/XI: Process Integration / Exchange Infrastructure (middleware)', 'EP: Enterprise Portal',
+            'SOLMAN: SAP Solution Manager', 'Fiori: SAP Fiori (UX and apps)', 'FLM: File Lifecycle Management',
+            'CPI: Cloud Platform Integration', 'BTP: Business Technology Platform', 'AI: Artificial Intelligence',
+            'Cloud ALM: Cloud Application Lifecycle Management', 'API: Application Programming Interface',
+            'SAC: SAP Analytics Cloud', 'Python: Python Programming Language',
+            'Salesforce: Salesforce Customer 360 Platform'
+        ]
+
+        valid_domains = [
+            'Technology', 'Healthcare', 'Finance', 'Education', 'Manufacturing', 'Energy', 'Retail',
+            'Agriculture', 'Transport', 'Media Entertainment', 'Government', 'Telecommunications',
+            'Real Estate', 'Hospitality', 'Legal', 'Environmental Services', 'Consulting', 'Fashion',
+            'Sports', 'Food Beverage', 'Aerospace Defense', 'Chemicals', 'Logistics', 'Non-Profit',
+            'Cybersecurity', 'Human Resources', 'Art Culture'
+        ]
+
+        valid_sectors = [
+            'Software', 'Hardware', 'IT Services', 'AI Data Science', 'Hospitals', 'Pharmaceuticals',
+            'Biotechnology', 'Medical Devices', 'Banking', 'Insurance', 'Investment', 'FinTech',
+            'Schools', 'Universities', 'EdTech', 'Vocational Training', 'Automotive', 'Electronics',
+            'Textiles', 'Machinery', 'Oil Gas', 'Renewables', 'Utilities', 'Mining', 'E-commerce',
+            'FMCG', 'Luxury Goods', 'Consumer Electronics', 'Farming', 'AgriTech', 'Food Processing',
+            'Dairy', 'Aviation', 'Shipping', 'Railways', 'Logistics', 'Film', 'Television', 'Gaming',
+            'Publishing', 'Public Sector Defense', 'Administration', 'Infrastructure', 'Policy',
+            'Mobile Networks', 'Broadband', 'Satellite', 'IoT', 'Residential', 'Commercial', 'Industrial',
+            'Smart Cities', 'Hotels', 'Restaurants', 'Travel Agencies', 'Tourism', 'Law Firms',
+            'Corporate Law', 'Intellectual Property', 'Compliance', 'Waste Management', 'Recycling',
+            'Water Treatment', 'Sustainability', 'Construction Civil Engineering', 'Urban Development',
+            'Smart Infrastructure', 'Housing Projects', 'Apparel', 'Footwear', 'Accessories',
+            'Luxury Brands', 'Professional Teams', 'Sportswear', 'Events Management', 'Fitness',
+            'Packaged Foods', 'Beverages', 'Nutrition', 'Commercial Airlines', 'Space Exploration',
+            'Drones', 'Industrial Chemicals', 'Petrochemicals', 'Agrochemicals', 'Specialty Chemicals',
+            'Supply Chain Warehousing', 'Distribution', 'Freight Forwarding', 'Cold Chain',
+            'NGOs Charities', 'Foundations', 'Social Work', 'Community Development', 'Network Security',
+            'Data Protection', 'Cloud Security', 'Risk Management', 'Recruitment', 'Training', 'Payroll',
+            'Employee Engagement', 'Museums', 'Performing Arts', 'Heritage Conservation', 'Design'
+        ]
+
+        def is_valid_value(value, valid_list):
+            return str(value).strip() in valid_list
+
+        # Validate each row
+        invalid_rows = []
         records = []
-        for _, row in df.iterrows():
-            knr = KNR(
-                customer_name=row.get('Customer name', ''),
-                domain=row.get('Domain', ''),
-                sector=row.get('Sector', ''),
-                module_name=row.get('Module Name', ''),
-                detailed_requirement=row.get('Detailed requirement', ''),
-                standard_custom=row.get('Standard/Custom', ''),
-                technical_details=row.get('Technical details(Z object name or Process developed/configured)', ''),
-                customer_benefit=row.get('Customer benefit', ''),
-                remarks=row.get('Remarks', ''),
-                attach_code_or_document='UPLOADED',
-                username = check_user.name,
-                Approver = check_user.irm,
-                Approval_status = 'Sent for Approval',
-                irm = check_user.irm,
-                srm = check_user.srm,
-                buh = check_user.buh,
-                bgh = check_user.bgh,
-                attachment_filename=None,
-                attachment_data=None,
-                rep_user_id=rep_user_id_value,
-                user_id=rep_user_id_value
-            )
-            records.append(knr)
+        for idx, row in df.iterrows():
+            domain_val = row.get('Domain', '').strip()
+            sector_val = row.get('Sector', '').strip()
+            module_val = row.get('Module Name', '').strip()
+
+            validation_errors = []
+            if domain_val and not is_valid_value(domain_val, valid_domains):
+                validation_errors.append(f"Invalid Domain: '{domain_val}' (Row {idx+2})")
+            if sector_val and not is_valid_value(sector_val, valid_sectors):
+                validation_errors.append(f"Invalid Sector: '{sector_val}' (Row {idx+2})")
+            if module_val and not is_valid_value(module_val, module_options):
+                validation_errors.append(f"Invalid Module: '{module_val}' (Row {idx+2})")
+
+            if validation_errors:
+                invalid_rows.extend(validation_errors)
+            else:
+                knr = KNR(
+                    customer_name=row.get('Customer name', ''),
+                    domain=row.get('Domain', ''),
+                    sector=row.get('Sector', ''),
+                    module_name=row.get('Module Name', ''),
+                    detailed_requirement=row.get('Detailed requirement', ''),
+                    standard_custom=row.get('Standard/Custom', ''),
+                    technical_details=row.get('Technical details(Z object name or Process developed/configured)', ''),
+                    customer_benefit=row.get('Customer benefit', ''),
+                    attach_code_or_document='UPLOADED',
+                    username=check_user.name,
+                    Approver=check_user.irm,
+                    Approval_status='Sent for Approval',
+                    irm=check_user.irm,
+                    srm=check_user.srm,
+                    buh=check_user.buh,
+                    bgh=check_user.bgh,
+                    attachment_filename=None,
+                    attachment_data=None,
+                    rep_user_id=rep_user_id_value,
+                    user_id=rep_user_id_value
+                )
+                records.append(knr)
+
+        if invalid_rows:
+            return jsonify({
+                'error': 'Validation failed for the following rows:',
+                'details': invalid_rows
+            }), 400
 
         if not records:
             return jsonify({'error': 'No valid data rows found in Excel'}), 400
 
         db.session.add_all(records)
         db.session.commit()
-        return jsonify({'message': f"{len(records)} records inserted"}), 200
+        return jsonify({'message': f"{len(records)} records inserted successfully"}), 200
+
 
     @rlp.route('/repoapproval/<int:id>', methods=['PUT'])
     @jwt_required()
@@ -374,9 +454,9 @@ class KNR_Requirements(Resource):
 
         if check_user is not None and check_user.type == 'Superadmin':
             total_repos = KNR.query.filter_by(Approval_status='Approved').count()
-            approved_repos = KNR.query.filter_by(Approval_status='Approved', Approver=check_user.name).count()
-            unapproved_repos = KNR.query.filter_by(Approval_status='Rejected', Approver=check_user.name).count()
-            sent_for_approval_repos = KNR.query.filter_by(Approval_status='Sent for Approval', Approver=check_user.name).count()
+            approved_repos = KNR.query.filter_by(Approval_status='Approved').count()
+            unapproved_repos = KNR.query.filter_by(Approval_status='Rejected').count()
+            sent_for_approval_repos = KNR.query.filter_by(Approval_status='Sent for Approval').count()
             
         elif check_user is not None and check_user.type == 'user':
             total_repos = KNR.query.filter_by(user_id=check_user.id).count()
@@ -385,9 +465,9 @@ class KNR_Requirements(Resource):
             sent_for_approval_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Sent for Approval').count()
         elif check_user is not None and check_user.type == 'manager':
             total_repos = KNR.query.filter_by(user_id=check_user.id).count()
-            approved_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Approved').count()
-            unapproved_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Rejected').count()
-            sent_for_approval_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Sent for Approval').count()
+            approved_repos = KNR.query.filter_by(Approver=check_user.name, Approval_status='Approved').count()
+            unapproved_repos = KNR.query.filter_by(Approver=check_user.name, Approval_status='Rejected').count()
+            sent_for_approval_repos = KNR.query.filter_by(Approver=check_user.name, Approval_status='Sent for Approval').count()
         else:
             return jsonify({"msg": "Unauthorized"}), 401
 
@@ -667,7 +747,6 @@ class KNR_Requirements(Resource):
                     KNR.standard_custom.ilike(q),
                     KNR.technical_details.ilike(q),
                     KNR.detailed_requirement.ilike(q),
-                    KNR.remarks.ilike(q),
                     KNR.customer_benefit.ilike(q),
                     KNR.business_justification.ilike(q),
                     KNR.username.ilike(q),
@@ -685,7 +764,6 @@ class KNR_Requirements(Resource):
                 "standard_custom": r.standard_custom,
                 "technical_details": r.technical_details,
                 "customer_benefit": r.customer_benefit,
-                "remarks": r.remarks,
                 "attach_code_or_document": r.attach_code_or_document,
                 "attachment_filename": r.attachment_filename,
                 "Approver": r.Approver,
@@ -1130,3 +1208,39 @@ class KNR_Requirements(Resource):
         )
 
 
+    @rlp.route("/delegate", methods=["POST"])
+    @jwt_required()
+    def delegate_repository():
+        data = request.get_json() or {}
+        repo_id = data.get("id")
+        print(repo_id)
+        delegate_user_id = data.get("delegateUserId")
+        print(delegate_user_id)
+        if not repo_id or not delegate_user_id:
+            return jsonify({"success": False, "message": "repoId and delegateUserId are required"}), 400
+
+        current_user_id = get_jwt_identity()
+
+        repo = KNR.query.get(repo_id)
+        if not repo:
+            return jsonify({"success": False, "message": "Repository not found"}), 404
+
+        if getattr(repo, "Approval_status", None) == "Approved":
+            return jsonify({"success": False, "message": "Already approved, cannot delegate"}), 400
+
+        delegate_user = User.query.get(delegate_user_id)
+        if not delegate_user:
+            return jsonify({"success": False, "message": "Delegate user not found"}), 404
+
+        # Update repo fields (use your real column names)
+        repo.Approval_status = "Sent for Approval"
+        repo.Approver = delegate_user.name
+        
+
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Repository delegated successfully",
+            
+        }), 200

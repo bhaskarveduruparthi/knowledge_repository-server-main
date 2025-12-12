@@ -52,7 +52,10 @@ class User_Requirements(Resource):
             posts = User.query.all()
             result = users.dump(posts)
             return jsonify(result)
-        
+        elif check_user.type == 'manager':
+            posts = User.query.filter_by(type='user').all()
+            result = users.dump(posts)
+            return jsonify(result)
         else:
             return jsonify("User not Authorized")
         
