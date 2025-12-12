@@ -301,34 +301,57 @@ class KNR_Requirements(Resource):
         ]
 
         valid_domains = [
-            'Technology', 'Healthcare', 'Finance', 'Education', 'Manufacturing', 'Energy', 'Retail',
-            'Agriculture', 'Transport', 'Media Entertainment', 'Government', 'Telecommunications',
-            'Real Estate', 'Hospitality', 'Legal', 'Environmental Services', 'Consulting', 'Fashion',
-            'Sports', 'Food Beverage', 'Aerospace Defense', 'Chemicals', 'Logistics', 'Non-Profit',
-            'Cybersecurity', 'Human Resources', 'Art Culture'
+        'Technology', 'Healthcare', 'Finance', 'Education', 'Manufacturing', 'Energy', 'Retail',
+        'Agriculture', 'Transport', 'Media & Entertainment', 'Government & Public Sector', 'Telecommunications',
+        'Real Estate', 'Hospitality', 'Legal', 'Environmental Services', 'Construction',
+        'Fashion', 'Sports', 'Food & Beverage', 'Aerospace', 'Chemicals', 'Logistics & Supply Chain',
+        'Non-Profit & NGOs', 'Cybersecurity', 'Human Resources', 'Art & Culture', 'Mining & Metals', 'Electronics',
+        'Insurance', 'Publishing', 'Consulting', 'Transportation Services', 'Marine', 'Luxury',
+        'Automation & Robotics', 'Biotechnology', 'Tourism', 'Gaming', 'Advertising & Marketing',
+        'Security Services', 'Transportation Infrastructure', 'Pharmaceuticals', 'Veterinary',
+        'Renewables', 'Cloud Computing', 'Artificial Intelligence', 'Blockchain', 'Space Industry'
         ]
 
+
         valid_sectors = [
-            'Software', 'Hardware', 'IT Services', 'AI Data Science', 'Hospitals', 'Pharmaceuticals',
+            'Software', 'Hardware', 'IT Services', 'AI & Data Science', 'Hospitals', 'Pharmaceuticals',
             'Biotechnology', 'Medical Devices', 'Banking', 'Insurance', 'Investment', 'FinTech',
             'Schools', 'Universities', 'EdTech', 'Vocational Training', 'Automotive', 'Electronics',
-            'Textiles', 'Machinery', 'Oil Gas', 'Renewables', 'Utilities', 'Mining', 'E-commerce',
+            'Textiles', 'Machinery', 'Oil & Gas', 'Renewables', 'Utilities', 'Mining', 'E-commerce',
             'FMCG', 'Luxury Goods', 'Consumer Electronics', 'Farming', 'AgriTech', 'Food Processing',
             'Dairy', 'Aviation', 'Shipping', 'Railways', 'Logistics', 'Film', 'Television', 'Gaming',
-            'Publishing', 'Public Sector Defense', 'Administration', 'Infrastructure', 'Policy',
+            'Publishing', 'Defense', 'Administration', 'Infrastructure', 'Policy',
             'Mobile Networks', 'Broadband', 'Satellite', 'IoT', 'Residential', 'Commercial', 'Industrial',
             'Smart Cities', 'Hotels', 'Restaurants', 'Travel Agencies', 'Tourism', 'Law Firms',
             'Corporate Law', 'Intellectual Property', 'Compliance', 'Waste Management', 'Recycling',
-            'Water Treatment', 'Sustainability', 'Construction Civil Engineering', 'Urban Development',
+            'Water Treatment', 'Sustainability Consulting', 'Civil Engineering', 'Urban Development',
             'Smart Infrastructure', 'Housing Projects', 'Apparel', 'Footwear', 'Accessories',
-            'Luxury Brands', 'Professional Teams', 'Sportswear', 'Events Management', 'Fitness',
-            'Packaged Foods', 'Beverages', 'Nutrition', 'Commercial Airlines', 'Space Exploration',
+            'Luxury Brands', 'Professional Teams', 'Sportswear', 'Events Management', 'Fitness','Restaurants'
+            'Packaged Foods', 'Beverages', 'Nutrition','Defense Aviation', 'Commercial Airlines', 'Space Exploration',
             'Drones', 'Industrial Chemicals', 'Petrochemicals', 'Agrochemicals', 'Specialty Chemicals',
-            'Supply Chain Warehousing', 'Distribution', 'Freight Forwarding', 'Cold Chain',
-            'NGOs Charities', 'Foundations', 'Social Work', 'Community Development', 'Network Security',
-            'Data Protection', 'Cloud Security', 'Risk Management', 'Recruitment', 'Training', 'Payroll',
-            'Employee Engagement', 'Museums', 'Performing Arts', 'Heritage Conservation', 'Design'
+            'Warehousing', 'Distribution', 'Freight Forwarding', 'Cold Chain', 'Charities',
+            'Foundations', 'Social Work', 'Community Development', 'Network Security', 'Data Protection',
+            'Cloud Security', 'Risk Management', 'Recruitment', 'Training', 'Payroll', 'Employee Engagement',
+            'Museums', 'Performing Arts', 'Heritage Conservation', 'Design', 'Iron & Steel',
+            'Precious Metals', 'Rare Earths', 'Industrial Minerals','Consumer Electronics', 'Semiconductors', 'Wearables',
+            'Smart Devices', 'Life Insurance', 'Health Insurance', 'Property Insurance', 'Reinsurance',
+            'Books', 'Magazines', 'Digital Media', 'Academic Journals', 'Management Consulting',
+            'IT Consulting', 'Strategy', 'Operations', 'Ride-Sharing', 'Public Transit',
+            'Courier Services', 'Fleet Management','Shipping', 'Fishing', 'Ports', 'Marine Engineering',
+            'Jewelry', 'High-End Fashion', 'Luxury Cars', 'Exclusive Travel', 'Industrial Robots',
+            'Service Robots', 'AI Robotics', 'Automation Systems', 'Genomics', 'Stem Cell Research',
+            'Bioinformatics', 'Medical Research', 'Adventure Tourism', 'Eco-Tourism',
+            'Cultural Tourism', 'Cruises', 'Esports', 'Mobile Games', 'Console Games',
+            'VR/AR Gaming', 'Digital Marketing', 'Branding', 'Market Research', 'Public Relations',
+            'Private Security', 'Surveillance', 'Risk Assessment', 'Emergency Response',
+            'Highways','Railways', 'Airports','Ports', 'Drug Development', 'Generic Drugs', 'Clinical Trials',
+            'Distribution', 'Animal Healthcare', 'Pet Products', 'Livestock Services', 'Research',
+            'Solar', 'Wind', 'Hydropower', 'Geothermal', 'SaaS', 'PaaS', 'IaaS', 'Hybrid Cloud',
+            'Machine Learning', 'Natural Language Processing', 'Computer Vision', 'Robotics',
+            'Cryptocurrency', 'Smart Contracts', 'Supply Chain Blockchain', 'DeFi',
+            'Satellites', 'Space Tourism', 'Asteroid Mining', 'Rocket Manufacturing'
         ]
+
 
         def is_valid_value(value, valid_list):
             return str(value).strip() in valid_list
