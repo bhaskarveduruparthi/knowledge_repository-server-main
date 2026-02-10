@@ -1378,3 +1378,28 @@ class KNR_Requirements(Resource):
                 'success': False,
                 'error': str(e)
             }), 500
+
+    @rlp.route('/manager-stats/years', methods=['GET'])
+    def get_available_years():
+        """
+        Get list of years that have repository data
+        """
+        try:
+            years = db.session.query(
+                extract('year', KNR.created_at).label('year')
+            ).distinct().order_by(
+                extract('year', KNR.created_at).desc()
+            ).all()
+            
+            year_list = [int(y.year) for y in years if y.year]
+            
+            return jsonify({
+                'success': True,
+                'years': year_list
+            }), 200
+            
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
