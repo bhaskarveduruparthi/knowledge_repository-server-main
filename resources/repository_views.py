@@ -13,7 +13,7 @@ from werkzeug.utils import secure_filename
 import pandas as pd
 from datetime import datetime
 from blueprints import rlp
-from sqlalchemy import or_
+from sqlalchemy import or_, func, extract, case
 import os
 from sqlalchemy import func
 import numpy as np
@@ -1267,3 +1267,114 @@ class KNR_Requirements(Resource):
             "message": "Repository delegated successfully",
             
         }), 200
+
+    @rlp.route('/download-all-logs', methods=['GET'])
+    def download_all_logs():
+        """
+        Endpoint to fetch all login logs without pagination
+        Returns all records from the database
+        """
+        try:
+            # Query all login logs from the database
+            # Order by timestamp descending to get newest first
+            all_logs = LoginLog.query.order_by(LoginLog.timestamp.desc()).all()
+            
+            # Convert to JSON serializable format
+            logs_data = []
+            for log in all_logs:
+                logs_data.append({
+                    'id': log.id,
+                    'yash_id': log.yash_id,
+                    'ip_address': log.ip_address,
+                    'user_agent': log.user_agent,
+                    'success': log.success,
+                    'message': log.message,
+                    'timestamp': log.timestamp.isoformat() if log.timestamp else None
+                })
+            
+            return jsonify(logs_data), 200
+            
+        except Exception as e:
+            print(f"Error fetching all logs: {str(e)}")
+            return jsonify({'error': 'Failed to fetch logs'}), 500
+
+
+    @rlp.route('/manager-stats/monthly', methods=['GET'])
+    def get_manager_stats_monthly():
+        """
+        Get repository statistics for each manager (IRM/SRM/BUH/BGH) grouped by month and year
+        Query params: 
+            - year (optional)
+            - month (optional)
+            - manager_type (optional): 'irm', 'srm', 'buh', 'bgh' - defaults to all
+        """
+        try:
+            year = request.args.get('year', type=int)
+            month = request.args.get('month', type=int)
+            manager_type = request.args.get('manager_type', 'irm')  # Default to IRM
+            
+            # Determine which manager field to use
+            manager_field_map = {
+                'irm': KNR.irm,
+                'srm': KNR.srm,
+                'buh': KNR.buh,
+                'bgh': KNR.bgh
+            }
+            
+            manager_field = manager_field_map.get(manager_type, KNR.irm)
+            
+            # Base query
+            query = db.session.query(
+                manager_field.label('manager_name'),
+                extract('year', KNR.created_at).label('year'),
+                extract('month', KNR.created_at).label('month'),
+                func.count(case((KNR.Approval_status == 'Approved', 1))).label('approved_count'),
+                func.count(case((KNR.Approval_status == 'Sent for Approval', 1))).label('pending_count'),
+                func.count(case((KNR.Approval_status == 'Rejected', 1))).label('rejected_count'),
+                func.count(KNR.id).label('total_count')
+            ).filter(
+                manager_field != 'NA',
+                manager_field.isnot(None)
+            )
+            
+            # Apply filters if provided
+            if year:
+                query = query.filter(extract('year', KNR.created_at) == year)
+            if month:
+                query = query.filter(extract('month', KNR.created_at) == month)
+            
+            # Group by manager and time period
+            results = query.group_by(
+                manager_field,
+                extract('year', KNR.created_at),
+                extract('month', KNR.created_at)
+            ).order_by(
+                extract('year', KNR.created_at).desc(),
+                extract('month', KNR.created_at).desc(),
+                manager_field
+            ).all()
+            
+            # Format response
+            data = []
+            for row in results:
+                data.append({
+                    'manager_name': row.manager_name,
+                    'year': int(row.year) if row.year else None,
+                    'month': int(row.month) if row.month else None,
+                    'approved': row.approved_count,
+                    'pending': row.pending_count,
+                    'rejected': row.rejected_count,
+                    'total': row.total_count
+                })
+            
+            return jsonify({
+                'success': True,
+                'data': data,
+                'manager_type': manager_type
+            }), 200
+            
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
