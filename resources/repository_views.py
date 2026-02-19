@@ -279,7 +279,8 @@ class KNR_Requirements(Resource):
             # ✅ Send approval email to IRM after successful DB commit
             try:
                 send_repo_approval_email(
-                    irm_email=check_user.irm_email,        # IRM email from user record
+                    irm_email=check_user.irm_email,
+                    user_email=check_user.email,
                     created_by=check_user.name,
                     customer_name=data['customer_name'],
                     domain=data['domain'],

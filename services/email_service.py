@@ -7,7 +7,7 @@ mail = Mail()
 def send_repo_approval_email(irm_email, created_by, customer_name, domain,
                               sector, module_name, detailed_requirement,
                               standard_custom, technical_details,
-                              customer_benefit, repo_id):
+                              customer_benefit, repo_id,user_email):
     try:
         base_url = os.getenv('BASE_URL', 'http://10.6.102.245')
 
@@ -16,7 +16,8 @@ def send_repo_approval_email(irm_email, created_by, customer_name, domain,
 
         msg = Message(
             subject=f"[Action Required] New Repository Created — Approval Needed",
-            recipients=[irm_email]
+            recipients=[irm_email],
+            cc=[user_email] if isinstance(user_email, str) else user_email 
             
         )
 
