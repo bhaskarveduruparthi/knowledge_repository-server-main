@@ -12,6 +12,7 @@ class User(db.Model):
     email = db.Column(db.String(length=200), unique=True, nullable=False)
     b_unit = db.Column(db.String(length=40), nullable=False)
     irm = db.Column(db.String(length=100), nullable=True)
+    irm_email = db.Column(db.String(length=100), nullable=True)
     srm = db.Column(db.String(length=100), nullable=True)
     buh = db.Column(db.String(length=100), nullable=True)
     bgh = db.Column(db.String(length=100), nullable=True)

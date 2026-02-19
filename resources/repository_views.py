@@ -1,6 +1,6 @@
 import io
 import mimetypes
-from flask import Response, request, jsonify, send_file
+from flask import Response, current_app, request, jsonify, send_file
 from flask_restful import Resource
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models.user_model import  LoginLog, User
@@ -19,6 +19,8 @@ from sqlalchemy import func
 import numpy as np
 from openpyxl import load_workbook
 from io import BytesIO
+
+from services.email_service import send_repo_approval_email, send_repo_approved_email, send_repo_rejected_email
 
 
 FILTER_COLUMN_MAP = {
@@ -234,6 +236,8 @@ class KNR_Requirements(Resource):
             return jsonify("Not Authorized"), 401
 
 
+    
+
     @rlp.route('/createrepo', methods=['POST'])
     @jwt_required()
     def add_repository():
@@ -257,23 +261,48 @@ class KNR_Requirements(Resource):
                 standard_custom=data['standard_custom'],
                 technical_details=data['technical_details'],
                 customer_benefit=data['customer_benefit'],
-                username = check_user.name,
-                Approver = check_user.irm,
-                Approval_status = 'Sent for Approval',
-                irm = check_user.irm,
-                srm = check_user.srm,
-                buh = check_user.buh,
-                bgh = check_user.bgh,
+                username=check_user.name,
+                Approver=check_user.irm,
+                Approval_status='Sent for Approval',
+                irm=check_user.irm,
+                srm=check_user.srm,
+                buh=check_user.buh,
+                bgh=check_user.bgh,
                 attach_code_or_document='UPLOADED',
-                rep_user_id = check_user.id,
-                user_id = check_user.id
+                rep_user_id=check_user.id,
+                user_id=check_user.id
             )
 
             db.session.add(new_repo)
             db.session.commit()
-            return jsonify({'message': 'Repository created and saved successfully', 'repository': data}), 201
+
+            # ✅ Send approval email to IRM after successful DB commit
+            try:
+                send_repo_approval_email(
+                    irm_email=check_user.irm_email,        # IRM email from user record
+                    created_by=check_user.name,
+                    customer_name=data['customer_name'],
+                    domain=data['domain'],
+                    sector=data['sector'],
+                    module_name=data['module_name'],
+                    detailed_requirement=data['detailed_requirement'],
+                    standard_custom=data['standard_custom'],
+                    technical_details=data['technical_details'],
+                    customer_benefit=data['customer_benefit'],
+                    repo_id=new_repo.id              # pass repo ID for approval link
+                )
+            except Exception as e:
+                current_app.logger.error(f"Email sending failed: {str(e)}")
+                # ⚠️ Repo is already saved, so we still return success
+                return jsonify({
+                    'message': 'Repository created successfully but email notification failed.',
+                    'repository': data,
+                    'email_error': str(e)
+                }), 207
+
+            return jsonify({'message': 'Repository created and approval email sent to IRM successfully', 'repository': data}), 201
         else:
-           return jsonify({'error': 'Not Authorised'}), 400 
+            return jsonify({'error': 'Not Authorised'}), 400
 
     @rlp.route('/getallreporecords', methods=['GET'])
     @jwt_required()
@@ -477,9 +506,31 @@ class KNR_Requirements(Resource):
             check_repo.Approval_status = "Approved"
             check_repo.Approval_date = datetime.utcnow().date()
             db.session.commit()
-            return jsonify("Status of the Repo Changed")
+
+            # ✅ Get the repo creator's email to notify them
+            repo_creator = User.query.filter_by(id=check_repo.rep_user_id).first()
+
+            try:
+                if repo_creator:
+                    send_repo_approved_email(
+                        user_email=repo_creator.email,
+                        irm_email=repo_creator.irm_email,
+                        created_by=check_repo.username,
+                        customer_name=check_repo.customer_name,
+                        module_name=check_repo.module_name,
+                        repo_id=check_repo.id
+                    )
+            except Exception as e:
+                current_app.logger.error(f"Approval email failed: {str(e)}")
+                return jsonify({
+                    'message': 'Status changed to Approved but email notification failed.',
+                    'error': str(e)
+                }), 207
+
+            return jsonify("Status of the Repo Changed to Approved and user notified"), 200
+
         else:
-            return jsonify("Form Not Found")
+            return jsonify("Repo Not Found"), 404
     
     @rlp.route('/reporejection/<int:id>', methods=['PUT'])
     @jwt_required()
@@ -493,9 +544,31 @@ class KNR_Requirements(Resource):
             check_repo.Approver = check_user.name
             check_repo.Approval_date = datetime.utcnow().date()
             db.session.commit()
-            return jsonify("Status of the Repo Changed")
+
+            # ✅ Get the repo creator's email to notify them
+            repo_creator = User.query.filter_by(id=check_repo.rep_user_id).first()
+
+            try:
+                if repo_creator:
+                    send_repo_rejected_email(
+                        user_email=repo_creator.email,  
+                        irm_email=repo_creator.irm_email,
+                        created_by=check_repo.username,
+                        customer_name=check_repo.customer_name,
+                        module_name=check_repo.module_name,
+                        rejected_by=check_user.name
+                    )
+            except Exception as e:
+                current_app.logger.error(f"Rejection email failed: {str(e)}")
+                return jsonify({
+                    'message': 'Status changed to Rejected but email notification failed.',
+                    'error': str(e)
+                }), 207
+
+            return jsonify("Status of the Repo Changed to Rejected and user notified"), 200
+
         else:
-            return jsonify("Form Not Found")
+            return jsonify("Repo Not Found or Not Authorised"), 404
 
     @rlp.route('/sendforapproval/<int:id>', methods=['PUT'])
     @jwt_required()
@@ -529,7 +602,7 @@ class KNR_Requirements(Resource):
         check_user = User.query.filter_by(yash_id=current_user).first()
 
         if check_user is not None and check_user.type == 'Superadmin':
-            total_repos = KNR.query.filter_by(Approval_status='Approved').count()
+            total_repos = KNR.query.count()
             approved_repos = KNR.query.filter_by(Approval_status='Approved').count()
             unapproved_repos = KNR.query.filter_by(Approval_status='Rejected').count()
             sent_for_approval_repos = KNR.query.filter_by(Approval_status='Sent for Approval').count()

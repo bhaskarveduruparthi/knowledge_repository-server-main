@@ -12,6 +12,7 @@ class User_Schema(Schema):
     name = fields.String(required=True)
     password = fields.String(required=True)
     irm = fields.String()
+    irm_email = fields.String()
     srm = fields.String()
     buh = fields.String()
     bgh = fields.String()
