@@ -34,6 +34,54 @@ ALLOWED_EXTENSIONS = {'xlsx'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def _serialize_with_access(results, user):
+    """
+    Serializes KNR records and sets download_approved correctly per user type:
+      - Superadmin : always True
+      - Everyone else: True only if an Approved DownloadRequest exists for that user
+    """
+    is_superadmin = user.type == 'Superadmin'
+
+    # For non-superadmins, fetch all their approved request knr_ids in one query
+    # instead of hitting the DB once per row
+    approved_ids = set()
+    if not is_superadmin:
+        approved_requests = DownloadRequest.query.filter_by(
+            requested_by=user.id,
+            status='Approved'
+        ).all()
+        approved_ids = {r.knr_id for r in approved_requests}
+
+    return [
+        {
+            'id':                     r.id,
+            'customer_name':          r.customer_name,
+            'domain':                 r.domain,
+            'sector':                 r.sector,
+            'module_name':            r.module_name,
+            'detailed_requirement':   r.detailed_requirement,
+            'standard_custom':        r.standard_custom,
+            'technical_details':      r.technical_details,
+            'customer_benefit':       r.customer_benefit,
+            'attach_code_or_document': r.attach_code_or_document,
+            'attachment_filename':    r.attachment_filename,
+            'Approver':               r.Approver,
+            'Approval_status':        r.Approval_status,
+            'Approval_date':          r.Approval_date.isoformat() if r.Approval_date else None,
+            'business_justification': r.business_justification,
+            'created_at':             r.created_at.isoformat() if r.created_at else None,
+            'updated_at':             r.updated_at.isoformat() if r.updated_at else None,
+            'rep_user_id':            r.rep_user_id,
+            'user_id':                r.user_id,
+            'username':               r.username,
+            # Superadmin always True; others only if they have an approved request
+            'download_approved':      True if is_superadmin else (r.id in approved_ids),
+        }
+        for r in results
+    ]
+
+
+
 class KNR_Requirements(Resource):
 
     @rlp.route('/getallrepos', methods=['GET'])
@@ -156,6 +204,11 @@ class KNR_Requirements(Resource):
             result = knrs.dump(get_repos)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
+            
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',Approver=check_user.name).all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'user':
             
             get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',Approver=check_user.name).all()
             result = knrs.dump(get_repos)
@@ -647,25 +700,89 @@ class KNR_Requirements(Resource):
 
 
     @rlp.route('/refview/<int:id>')
-    def refview (id):
-        check_file = KNR.query.filter_by(id=id).first()
-        if check_file is not None:
-            filename = check_file.attachment_filename
-            filedata = check_file.attachment_data
+    @jwt_required()
+    def refview(id):
+        # ── Identify the requesting user ──────────────────────────────────────
+        identity = get_jwt_identity()
+        user     = User.query.filter_by(yash_id=identity).first()
 
-            # Guess the mimetype based on the filename
-            mimetype, _ = mimetypes.guess_type(filename)
-            if mimetype is None:
-                mimetype = 'application/octet-stream'  # fallback
-                    
-            return send_file(
-                BytesIO(filedata), 
-                mimetype=mimetype,
-                download_name=filename,
-                as_attachment=False   # <-- CHANGED HERE
-            )
-        # Handle file not found
-        return "File not found", 404
+        if user is None:
+            return jsonify({'error': 'User not found'}), 401
+
+        # ── Fetch the repository ──────────────────────────────────────────────
+        check_file = KNR.query.filter_by(id=id).first()
+
+        if check_file is None:
+            return jsonify({'error': 'Repository not found'}), 404
+
+        if not check_file.attachment_data:
+            return jsonify({'error': 'No attachment found for this repository'}), 404
+
+        # ── Superadmin bypasses the approval gate ─────────────────────────────
+        if user.type != 'Superadmin':
+            approved = DownloadRequest.query.filter_by(
+                knr_id=id,
+                requested_by=user.id,
+                status='Approved'
+            ).first()
+
+            if not approved:
+                return jsonify({
+                    'error': 'Access denied. Request approval from a Superadmin before viewing this attachment.'
+                }), 403
+
+        # ── Detect MIME type ──────────────────────────────────────────────────
+        filename = check_file.attachment_filename or f'repository_{id}'
+        filedata = check_file.attachment_data
+
+        mimetype, _ = mimetypes.guess_type(filename)
+
+        if mimetype is None:
+            if filedata[:4] == b'%PDF':
+                mimetype = 'application/pdf'
+            elif filedata[:8] == b'\x89PNG\r\n\x1a\n':
+                mimetype = 'image/png'
+            elif filedata[:3] == b'\xff\xd8\xff':
+                mimetype = 'image/jpeg'
+            elif filedata[:4] == b'PK\x03\x04':
+                ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+                mime_map = {
+                    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                    'zip' : 'application/zip',
+                }
+                mimetype = mime_map.get(ext, 'application/octet-stream')
+            else:
+                mimetype = 'application/octet-stream'
+
+        # ── Log the access ────────────────────────────────────────────────────
+        ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
+        user_agent = request.headers.get('User-Agent')
+
+        log = DownloadLog(
+            user_id=user.id,
+            yash_id=user.yash_id,
+            username=user.name,
+            file_id=check_file.id,
+            filename=filename,
+            timestamp=datetime.utcnow(),
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        db.session.add(log)
+        db.session.commit()
+
+        # ── Serve inline ──────────────────────────────────────────────────────
+        response = send_file(
+            BytesIO(filedata),
+            mimetype=mimetype,
+            download_name=filename,
+            as_attachment=False
+        )
+        response.headers['Content-Disposition'] = f'inline; filename="{filename}"'
+        return response
+
 
     
 
@@ -741,26 +858,28 @@ class KNR_Requirements(Resource):
     
     
 
-    @rlp.route("/search", methods=["GET"])
+    @rlp.route('/search', methods=['GET'])
+    @jwt_required()
     def search_repositories():
-        selected_filter = request.args.get("filter")   # Dropdown selected filter, may be None
-        query_text = request.args.get("query")         # Search text
+        identity   = get_jwt_identity()
+        user       = User.query.filter_by(yash_id=identity).first()
+
+        if user is None:
+            return jsonify({'error': 'User not found'}), 401
+
+        selected_filter = (request.args.get('filter') or 'Any').strip()
+        query_text      = (request.args.get('query')  or '').strip()
 
         if not query_text:
-            return jsonify({"error": "query is required"}), 400
+            return jsonify({'error': 'query is required'}), 400
 
-        # Normalize query once
-        q = f"%{query_text}%"
-
+        q          = f'%{query_text}%'
         base_query = KNR.query.filter_by(Approval_status='Approved')
 
-        if selected_filter and selected_filter in FILTER_COLUMN_MAP and selected_filter != "Any":
-            # Specific field search
-            column_name = FILTER_COLUMN_MAP[selected_filter]
-            column = getattr(KNR, column_name)
+        if selected_filter in FILTER_COLUMN_MAP:
+            column  = getattr(KNR, FILTER_COLUMN_MAP[selected_filter])
             results = base_query.filter(column.ilike(q)).all()
         else:
-            # "any" or no filter -> search in all relevant fields with the whole query string
             results = base_query.filter(
                 or_(
                     KNR.domain.ilike(q),
@@ -776,33 +895,7 @@ class KNR_Requirements(Resource):
                 )
             ).all()
 
-        data = [
-            {
-                "id": r.id,
-                "customer_name": r.customer_name,
-                "domain": r.domain,
-                "sector": r.sector,
-                "module_name": r.module_name,
-                "detailed_requirement": r.detailed_requirement,
-                "standard_custom": r.standard_custom,
-                "technical_details": r.technical_details,
-                "customer_benefit": r.customer_benefit,
-                "attach_code_or_document": r.attach_code_or_document,
-                "attachment_filename": r.attachment_filename,
-                "Approver": r.Approver,
-                "Approval_status": r.Approval_status,
-                "Approval_date": r.Approval_date.isoformat() if r.Approval_date else None,
-                "business_justification": r.business_justification,
-                "created_at": r.created_at.isoformat() if r.created_at else None,
-                "updated_at": r.updated_at.isoformat() if r.updated_at else None,
-                "rep_user_id": r.rep_user_id,
-                "user_id": r.user_id,
-                "username": r.username,
-            }
-            for r in results
-        ]
-
-        return jsonify(data), 200
+        return jsonify(_serialize_with_access(results, user)), 200
 
 
 
@@ -1300,50 +1393,48 @@ class KNR_Requirements(Resource):
 
 
     @rlp.route('/manager-stats/monthly', methods=['GET'])
+    @jwt_required()
     def get_manager_stats_monthly():
-        """
-        Get repository statistics for each manager (IRM/SRM/BUH/BGH) grouped by month and year
-        Query params: 
-            - year (optional)
-            - month (optional)
-            - manager_type (optional): 'irm', 'srm', 'buh', 'bgh' - defaults to all
-        """
         try:
+            current_user = get_jwt_identity()
+            check_user = User.query.filter_by(yash_id=current_user).first()
+
+            # Superadmin only
+            if not check_user or check_user.type != 'Superadmin':
+                return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+
             year = request.args.get('year', type=int)
             month = request.args.get('month', type=int)
-            manager_type = request.args.get('manager_type', 'irm')  # Default to IRM
-            
-            # Determine which manager field to use
+            manager_type = request.args.get('manager_type', 'irm')
+
             manager_field_map = {
                 'irm': KNR.irm,
                 'srm': KNR.srm,
                 'buh': KNR.buh,
                 'bgh': KNR.bgh
             }
-            
+
             manager_field = manager_field_map.get(manager_type, KNR.irm)
-            
-            # Base query
+
             query = db.session.query(
                 manager_field.label('manager_name'),
                 extract('year', KNR.created_at).label('year'),
                 extract('month', KNR.created_at).label('month'),
-                func.count(case((KNR.Approval_status == 'Approved', 1))).label('approved_count'),
-                func.count(case((KNR.Approval_status == 'Sent for Approval', 1))).label('pending_count'),
-                func.count(case((KNR.Approval_status == 'Rejected', 1))).label('rejected_count'),
+                func.sum(case((KNR.Approval_status == 'Approved', 1), else_=0)).label('approved_count'),
+                func.sum(case((KNR.Approval_status == 'Sent for Approval', 1), else_=0)).label('pending_count'),
+                func.sum(case((KNR.Approval_status == 'Rejected', 1), else_=0)).label('rejected_count'),
                 func.count(KNR.id).label('total_count')
             ).filter(
                 manager_field != 'NA',
-                manager_field.isnot(None)
+                manager_field.isnot(None),
+                manager_field != ''
             )
-            
-            # Apply filters if provided
+
             if year:
                 query = query.filter(extract('year', KNR.created_at) == year)
             if month:
                 query = query.filter(extract('month', KNR.created_at) == month)
-            
-            # Group by manager and time period
+
             results = query.group_by(
                 manager_field,
                 extract('year', KNR.created_at),
@@ -1353,53 +1444,56 @@ class KNR_Requirements(Resource):
                 extract('month', KNR.created_at).desc(),
                 manager_field
             ).all()
-            
-            # Format response
+
             data = []
             for row in results:
                 data.append({
                     'manager_name': row.manager_name,
                     'year': int(row.year) if row.year else None,
                     'month': int(row.month) if row.month else None,
-                    'approved': row.approved_count,
-                    'pending': row.pending_count,
-                    'rejected': row.rejected_count,
-                    'total': row.total_count
+                    'approved': int(row.approved_count or 0),
+                    'pending': int(row.pending_count or 0),
+                    'rejected': int(row.rejected_count or 0),
+                    'total': int(row.total_count or 0)
                 })
-            
-            return jsonify({
-                'success': True,
-                'data': data,
-                'manager_type': manager_type
-            }), 200
-            
+
+            return jsonify({'success': True, 'data': data, 'manager_type': manager_type}), 200
+
         except Exception as e:
-            return jsonify({
-                'success': False,
-                'error': str(e)
-            }), 500
+            return jsonify({'success': False, 'error': str(e)}), 500
+
 
     @rlp.route('/manager-stats/years', methods=['GET'])
+    @jwt_required()
     def get_available_years():
-        """
-        Get list of years that have repository data
-        """
         try:
+            current_user = get_jwt_identity()
+            check_user = User.query.filter_by(yash_id=current_user).first()
+
+            if not check_user or check_user.type != 'Superadmin':
+                return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+
             years = db.session.query(
                 extract('year', KNR.created_at).label('year')
             ).distinct().order_by(
                 extract('year', KNR.created_at).desc()
             ).all()
-            
+
             year_list = [int(y.year) for y in years if y.year]
-            
-            return jsonify({
-                'success': True,
-                'years': year_list
-            }), 200
-            
+
+            return jsonify({'success': True, 'years': year_list}), 200
+
         except Exception as e:
-            return jsonify({
-                'success': False,
-                'error': str(e)
-            }), 500
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @rlp.route('/all-approved', methods=['GET'])
+    @jwt_required()
+    def get_all_approved():
+        identity   = get_jwt_identity()
+        user       = User.query.filter_by(yash_id=identity).first()
+
+        if user is None:
+            return jsonify({'error': 'User not found'}), 401
+
+        results = KNR.query.filter_by(Approval_status='Approved').all()
+        return jsonify(_serialize_with_access(results, user)), 200
