@@ -9,7 +9,7 @@ def send_repo_approval_email(irm_email, created_by, customer_name, domain,
                               standard_custom, technical_details,
                               customer_benefit, repo_id):
     try:
-        base_url = os.getenv('BASE_URL', 'http://localhost:4200')
+        base_url = os.getenv('BASE_URL', 'http://10.6.102.245')
 
         approve_url = f"{base_url}/auth/login"
         
@@ -102,7 +102,7 @@ def send_repo_approval_email(irm_email, created_by, customer_name, domain,
     
 def send_repo_approved_email(user_email, created_by, customer_name, module_name, repo_id, irm_email):
     try:
-        base_url = os.getenv('BASE_URL', 'http://localhost:4200')
+        base_url = os.getenv('BASE_URL', 'http://10.6.102.245')
         repo_url = f"{base_url}/auth/login"
 
         msg = Message(
@@ -161,7 +161,7 @@ def send_repo_approved_email(user_email, created_by, customer_name, module_name,
 
 def send_repo_rejected_email(user_email, created_by, customer_name, module_name, rejected_by, irm_email):
     try:
-        base_url = os.getenv('BASE_URL', 'http://localhost:4200')
+        base_url = os.getenv('BASE_URL', 'http://10.6.102.245')
         repo_url = f"{base_url}/auth/login"
 
         msg = Message(
