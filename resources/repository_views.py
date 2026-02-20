@@ -20,7 +20,7 @@ import numpy as np
 from openpyxl import load_workbook
 from io import BytesIO
 
-from services.email_service import send_repo_approval_email, send_repo_approved_email, send_repo_rejected_email
+
 
 
 FILTER_COLUMN_MAP = {
@@ -277,7 +277,7 @@ class KNR_Requirements(Resource):
             db.session.commit()
 
             # ✅ Send approval email to IRM after successful DB commit
-            try:
+            '''try:
                 send_repo_approval_email(
                     irm_email=check_user.irm_email,
                     user_email=check_user.email,
@@ -299,7 +299,7 @@ class KNR_Requirements(Resource):
                     'message': 'Repository created successfully but email notification failed.',
                     'repository': data,
                     'email_error': str(e)
-                }), 207
+                }), 207'''
 
             return jsonify({'message': 'Repository created and approval email sent to IRM successfully', 'repository': data}), 201
         else:
@@ -508,7 +508,7 @@ class KNR_Requirements(Resource):
             check_repo.Approval_date = datetime.utcnow().date()
             db.session.commit()
 
-            # ✅ Get the repo creator's email to notify them
+            '''# ✅ Get the repo creator's email to notify them
             repo_creator = User.query.filter_by(id=check_repo.rep_user_id).first()
 
             try:
@@ -526,7 +526,7 @@ class KNR_Requirements(Resource):
                 return jsonify({
                     'message': 'Status changed to Approved but email notification failed.',
                     'error': str(e)
-                }), 207
+                }), 207'''
 
             return jsonify("Status of the Repo Changed to Approved and user notified"), 200
 
@@ -547,7 +547,7 @@ class KNR_Requirements(Resource):
             db.session.commit()
 
             # ✅ Get the repo creator's email to notify them
-            repo_creator = User.query.filter_by(id=check_repo.rep_user_id).first()
+            '''repo_creator = User.query.filter_by(id=check_repo.rep_user_id).first()
 
             try:
                 if repo_creator:
@@ -564,7 +564,7 @@ class KNR_Requirements(Resource):
                 return jsonify({
                     'message': 'Status changed to Rejected but email notification failed.',
                     'error': str(e)
-                }), 207
+                }), 207'''
 
             return jsonify("Status of the Repo Changed to Rejected and user notified"), 200
 
@@ -609,15 +609,23 @@ class KNR_Requirements(Resource):
             sent_for_approval_repos = KNR.query.filter_by(Approval_status='Sent for Approval').count()
             
         elif check_user is not None and check_user.type == 'user':
-            total_repos = KNR.query.filter_by(user_id=check_user.id).count()
+            '''total_repos = KNR.query.filter_by(user_id=check_user.id).count()
             approved_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Approved').count()
             unapproved_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Rejected').count()
-            sent_for_approval_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Sent for Approval').count()
+            sent_for_approval_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Sent for Approval').count()'''
+            total_repos = KNR.query.count()
+            approved_repos = KNR.query.filter_by(Approval_status='Approved').count()
+            unapproved_repos = KNR.query.filter_by(Approval_status='Rejected').count()
+            sent_for_approval_repos = KNR.query.filter_by(Approval_status='Sent for Approval').count()
         elif check_user is not None and check_user.type == 'manager':
-            total_repos = KNR.query.filter_by(user_id=check_user.id).count()
+            '''total_repos = KNR.query.filter_by(user_id=check_user.id).count()
             approved_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Approved').count()
             unapproved_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Rejected').count()
-            sent_for_approval_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Sent for Approval').count()
+            sent_for_approval_repos = KNR.query.filter_by(user_id=check_user.id, Approval_status='Sent for Approval').count()'''
+            total_repos = KNR.query.count()
+            approved_repos = KNR.query.filter_by(Approval_status='Approved').count()
+            unapproved_repos = KNR.query.filter_by(Approval_status='Rejected').count()
+            sent_for_approval_repos = KNR.query.filter_by(Approval_status='Sent for Approval').count()
         else:
             return jsonify({"msg": "Unauthorized"}), 401
 
@@ -881,16 +889,28 @@ class KNR_Requirements(Resource):
 
         # Manager: only their own data (by user_id)
         elif check_user.type == 'manager':
-            data = (
+            '''data = (
                 db.session.query(KNR.module_name, func.count(KNR.id))
                 .filter(KNR.user_id == check_user.id)
                 .group_by(KNR.module_name)
                 .all()
-            )
-        elif check_user.type == 'user':
+            )'''
             data = (
                 db.session.query(KNR.module_name, func.count(KNR.id))
+                .filter(KNR.Approval_status == 'Approved')
+                .group_by(KNR.module_name)
+                .all()
+            )
+        elif check_user.type == 'user':
+            '''data = (
+                db.session.query(KNR.module_name, func.count(KNR.id))
                 .filter(KNR.user_id == check_user.id)
+                .group_by(KNR.module_name)
+                .all()
+            )'''
+            data = (
+                db.session.query(KNR.module_name, func.count(KNR.id))
+                .filter(KNR.Approval_status == 'Approved')
                 .group_by(KNR.module_name)
                 .all()
             )
@@ -919,10 +939,12 @@ class KNR_Requirements(Resource):
             
         
         elif check_user.type == 'manager':
-            data = db.session.query(KNR.domain, func.count(KNR.id)).filter(KNR.user_id == check_user.id).group_by(KNR.domain).all()
+            '''data = db.session.query(KNR.domain, func.count(KNR.id)).filter(KNR.user_id == check_user.id).group_by(KNR.domain).all()'''
+            data = db.session.query(KNR.domain, func.count(KNR.id)).filter(KNR.Approval_status == 'Approved').group_by(KNR.domain).all()
             
         elif check_user.type == 'user':
-            data = db.session.query(KNR.domain, func.count(KNR.id)).filter(KNR.user_id == check_user.id).group_by(KNR.domain).all()
+            '''data = db.session.query(KNR.domain, func.count(KNR.id)).filter(KNR.user_id == check_user.id).group_by(KNR.domain).all()'''
+            data = db.session.query(KNR.domain, func.count(KNR.id)).filter(KNR.Approval_status == 'Approved').group_by(KNR.domain).all()
             
         else:
             return jsonify({"msg": "Forbidden"}), 403
@@ -1699,3 +1721,5 @@ class KNR_Requirements(Resource):
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
+
+    
