@@ -647,7 +647,7 @@ class KNR_Requirements(Resource):
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
 
-        if check_user is not None and check_user.type == 'Superadmin':
+        if check_user is not None:
 
             check_repo = KNR.query.filter_by(id=id).first()
             if check_repo is not None:
@@ -732,7 +732,7 @@ class KNR_Requirements(Resource):
         )
 
 
-    @rlp.route('/refview/<int:id>')
+    @rlp.route('/refview/<int:id>', methods=['GET'])
     @jwt_required()
     def refview(id):
         identity = get_jwt_identity()
@@ -749,21 +749,12 @@ class KNR_Requirements(Resource):
         if not check_file.attachment_data:
             return jsonify({'error': 'No attachment found for this repository'}), 404
 
-        if user.type != 'Superadmin':
-            approved = DownloadRequest.query.filter_by(
-                knr_id=id,
-                requested_by=user.id,
-                status='Approved'
-            ).first()
-
-            if not approved:
-                return jsonify({
-                    'error': 'Access denied. Request approval from a Superadmin before viewing this attachment.'
-                }), 403
+        # ✅ NO approval gate — any authenticated user may view
 
         filename = check_file.attachment_filename or f'repository_{id}'
         filedata = check_file.attachment_data
 
+        # ── MIME detection ──────────────────────────────────────────────────────
         mimetype, _ = mimetypes.guess_type(filename)
 
         if mimetype is None:
@@ -773,6 +764,8 @@ class KNR_Requirements(Resource):
                 mimetype = 'image/png'
             elif filedata[:3] == b'\xff\xd8\xff':
                 mimetype = 'image/jpeg'
+            elif filedata[:4] == b'GIF8':
+                mimetype = 'image/gif'
             elif filedata[:4] == b'PK\x03\x04':
                 ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
                 mime_map = {
@@ -785,29 +778,59 @@ class KNR_Requirements(Resource):
             else:
                 mimetype = 'application/octet-stream'
 
+        # ── Audit log ───────────────────────────────────────────────────────────
         ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
         user_agent = request.headers.get('User-Agent')
 
         log = DownloadLog(
-            user_id=user.id,
-            yash_id=user.yash_id,
-            username=user.name,
-            file_id=check_file.id,
-            filename=filename,
-            timestamp=datetime.utcnow(),
-            ip_address=ip_address,
-            user_agent=user_agent,
+            user_id   = user.id,
+            yash_id   = user.yash_id,
+            username  = user.name,
+            file_id   = check_file.id,
+            filename  = filename,
+            timestamp = datetime.utcnow(),
+            ip_address= ip_address,
+            user_agent= user_agent,
         )
         db.session.add(log)
         db.session.commit()
 
+        # ── Build response ──────────────────────────────────────────────────────
         response = send_file(
             BytesIO(filedata),
             mimetype=mimetype,
             download_name=filename,
-            as_attachment=False
+            as_attachment=False,        # inline — never triggers Save dialog
         )
+
+        # Force inline display
         response.headers['Content-Disposition'] = f'inline; filename="{filename}"'
+
+        # ── Security headers (prevent browser saving / caching to disk) ─────────
+
+        # Tells the browser: do NOT cache this response anywhere on disk
+        response.headers['Cache-Control']       = 'no-store, no-cache, must-revalidate, private'
+        response.headers['Pragma']              = 'no-cache'
+        response.headers['Expires']             = '0'
+
+        # Prevents MIME-type sniffing (browser must use the declared mime type)
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+
+        # Prevents embedding in external iframes (only our own origin can embed)
+        response.headers['X-Frame-Options']    = 'SAMEORIGIN'
+
+        # Referrer policy — don't leak the URL when navigating away
+        response.headers['Referrer-Policy']    = 'no-referrer'
+
+        # CSP for PDF/image responses served directly:
+        # Disallows scripts that could exfiltrate the data
+        response.headers['Content-Security-Policy'] = (
+            "default-src 'none'; "
+            "img-src 'self' blob: data:; "
+            "style-src 'unsafe-inline'; "
+            "script-src 'none';"
+        )
+
         return response
 
 
