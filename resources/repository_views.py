@@ -95,7 +95,7 @@ class KNR_Requirements(Resource):
 
         if checkuser is not None and checkuser.type == 'Superadmin':
             page = request.args.get('page', 1, type=int)
-            getrepos = KNR.query.filter_by(Approval_status='Approved').paginate(page=page, per_page=10)
+            getrepos = KNR.query.filter_by(Approval_status='Approved').paginate(page=page, per_page=6)
             result = []
             for r in getrepos.items:
                 result.append({
@@ -124,7 +124,7 @@ class KNR_Requirements(Resource):
 
         if checkuser is not None and checkuser.type == 'manager':
             page = request.args.get('page', 1, type=int)
-            getrepos = KNR.query.filter_by(Approval_status='Approved').paginate(page=page, per_page=10)
+            getrepos = KNR.query.filter_by(Approval_status='Approved').paginate(page=page, per_page=6)
             result = []
             for r in getrepos.items:
                 approved_req = DownloadRequest.query.filter_by(
@@ -159,7 +159,7 @@ class KNR_Requirements(Resource):
 
         elif checkuser is not None and checkuser.type == 'user':
             page = request.args.get('page', 1, type=int)
-            getrepos = KNR.query.filter_by(Approval_status='Approved').paginate(page=page, per_page=10)
+            getrepos = KNR.query.filter_by(Approval_status='Approved').paginate(page=page, per_page=6)
             result = []
             for r in getrepos.items:
                 approved_req = DownloadRequest.query.filter_by(
@@ -940,17 +940,17 @@ class KNR_Requirements(Resource):
         check_user = User.query.filter_by(yash_id=current_user).first()
         if check_user is not None and check_user.type == 'Superadmin':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Approved').paginate(page=page, per_page=10)
+            get_repos = KNR.query.filter_by(Approval_status='Approved').paginate(page=page, per_page=6)
             result = knrs.dump(get_repos)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Approved', user_id=check_user.id).paginate(page=page, per_page=10)
+            get_repos = KNR.query.filter_by(Approval_status='Approved', user_id=check_user.id).paginate(page=page, per_page=6)
             result = knrs.dump(get_repos)
             return jsonify(result)
         elif check_user is not None and check_user.type == 'user':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Approved',user_id=check_user.id).paginate(page=page, per_page=10)
+            get_repos = KNR.query.filter_by(Approval_status='Approved',user_id=check_user.id).paginate(page=page, per_page=6)
             result = knrs.dump(get_repos)
             return jsonify(result)
         else:
@@ -984,17 +984,17 @@ class KNR_Requirements(Resource):
         check_user = User.query.filter_by(yash_id=current_user).first()
         if check_user is not None and check_user.type == 'Superadmin':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').paginate(page=page, per_page=10)
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').paginate(page=page, per_page=6)
             result = knrs.dump(get_repos)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval', user_id=check_user.id).paginate(page=page, per_page=10)
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval', user_id=check_user.id).paginate(page=page, per_page=6)
             result = knrs.dump(get_repos)
             return jsonify(result)
         elif check_user is not None and check_user.type == 'user':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',user_id=check_user.id).paginate(page=page, per_page=10)
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',user_id=check_user.id).paginate(page=page, per_page=6)
             result = knrs.dump(get_repos)
             return jsonify(result)
         else:
@@ -1072,17 +1072,17 @@ class KNR_Requirements(Resource):
         check_user = User.query.filter_by(yash_id=current_user).first()
         if check_user is not None and check_user.type == 'Superadmin':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Rejected').paginate(page=page, per_page=10)
+            get_repos = KNR.query.filter_by(Approval_status='Rejected').paginate(page=page, per_page=6)
             result = knrs.dump(get_repos)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Rejected', user_id=check_user.id).paginate(page=page, per_page=10)
+            get_repos = KNR.query.filter_by(Approval_status='Rejected', user_id=check_user.id).paginate(page=page, per_page=6)
             result = knrs.dump(get_repos)
             return jsonify(result)
         elif check_user is not None and check_user.type == 'user':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Rejected',user_id=check_user.id).paginate(page=page, per_page=10)
+            get_repos = KNR.query.filter_by(Approval_status='Rejected',user_id=check_user.id).paginate(page=page, per_page=6)
             result = knrs.dump(get_repos)
             return jsonify(result)
         else:
@@ -1514,7 +1514,7 @@ class KNR_Requirements(Resource):
 
         if checkuser is not None and checkuser.type == 'Superadmin':
             page = request.args.get('page', 1, type=int)
-            getrepos = KNR.query.filter_by(user_id=checkuser.id).paginate(page=page, per_page=10)
+            getrepos = KNR.query.filter_by(user_id=checkuser.id).paginate(page=page, per_page=6)
             result = []
             for r in getrepos.items:
                 result.append({
@@ -1543,7 +1543,7 @@ class KNR_Requirements(Resource):
 
         if checkuser is not None and checkuser.type == 'manager':
             page = request.args.get('page', 1, type=int)
-            getrepos = KNR.query.filter_by(user_id=checkuser.id).paginate(page=page, per_page=10)
+            getrepos = KNR.query.filter_by(user_id=checkuser.id).paginate(page=page, per_page=6)
             result = []
             for r in getrepos.items:
                 approved_req = DownloadRequest.query.filter_by(
@@ -1578,7 +1578,7 @@ class KNR_Requirements(Resource):
 
         elif checkuser is not None and checkuser.type == 'user':
             page = request.args.get('page', 1, type=int)
-            getrepos = KNR.query.filter_by(user_id=checkuser.id).paginate(page=page, per_page=10)
+            getrepos = KNR.query.filter_by(user_id=checkuser.id).paginate(page=page, per_page=6)
             result = []
             for r in getrepos.items:
                 approved_req = DownloadRequest.query.filter_by(
