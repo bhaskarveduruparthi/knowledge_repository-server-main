@@ -1241,7 +1241,7 @@ class KNR_Requirements(Resource):
         if user.type != 'Superadmin':
             return jsonify({'message': 'Forbidden'}), 403
 
-        reqs = DownloadRequest.query.order_by(DownloadRequest.requested_at.desc()).all()
+        reqs = DownloadRequest.query.filter_by(status='Pending').order_by(DownloadRequest.requested_at.desc()).all()
         result = []
         for r in reqs:
             result.append({
@@ -1633,3 +1633,14 @@ class KNR_Requirements(Resource):
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
+
+    @rlp.route('/getrepos', methods=['GET'])
+    @jwt_required()
+    def getrepos():
+        current_user = get_jwt_identity()
+        checkuser = User.query.filter_by(yash_id=current_user).first()
+        if checkuser is not None and checkuser.type == 'Superadmin':
+            
+            getrepos = KNR.query.all()
+            result = knrs.dump(getrepos)
+        return jsonify(result)

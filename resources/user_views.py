@@ -1,12 +1,15 @@
 from flask import request, json, jsonify
 from flask_restful import Resource
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from models.repository_model import KNR
 from models.user_model import User
 from schemas.user_schema import user,users
+from schemas.repository_schema import knr, knrs
 from default_settings import db 
 import datetime
 from blueprints import blp
 from extensions.BCRYPT import bcrypt
+from sqlalchemy import func, case
 
 class User_Requirements(Resource):
     
@@ -144,3 +147,5 @@ class User_Requirements(Resource):
             return jsonify("User Deleted")
         else:
             return jsonify("Not an Admin")
+
+    
