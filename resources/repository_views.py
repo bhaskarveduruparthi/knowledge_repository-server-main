@@ -4,7 +4,7 @@ from flask import Response, current_app, request, jsonify, send_file
 from flask_restful import Resource
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models.user_model import  LoginLog, User
-from models.repository_model import KNR, DownloadLog, DownloadRequest
+from models.repository_model import KNR, DownloadLog, DownloadRequest, ViewLog
 from schemas.repository_schema import knr, knrs
 from schemas.user_schema import user, users
 from schemas.support_schema import login_log, login_logs, download_log, download_logs
@@ -782,7 +782,7 @@ class KNR_Requirements(Resource):
         ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
         user_agent = request.headers.get('User-Agent')
 
-        log = DownloadLog(
+        log = ViewLog(
             user_id   = user.id,
             yash_id   = user.yash_id,
             username  = user.name,

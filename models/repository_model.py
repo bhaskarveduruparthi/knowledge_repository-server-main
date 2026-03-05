@@ -47,6 +47,17 @@ class DownloadLog(db.Model):
     ip_address = db.Column(db.String(45))
     user_agent = db.Column(db.String(256))
 
+class ViewLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(80), nullable=True)
+    yash_id = db.Column(db.String(80), nullable=True)
+    username = db.Column(db.String(255), nullable=True)
+    file_id = db.Column(db.Integer, nullable=False)
+    filename = db.Column(db.String(255))
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    ip_address = db.Column(db.String(45))
+    user_agent = db.Column(db.String(256))
+
 class DownloadRequest(db.Model):
     __tablename__ = 'download_request'
 
