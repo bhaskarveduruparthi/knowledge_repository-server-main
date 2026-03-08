@@ -1,6 +1,6 @@
 from marshmallow import Schema , fields
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
-from models.repository_model import DownloadLog
+from models.repository_model import DownloadLog, ViewLog
 from models.support_model import Question, Answer
 from models.user_model import LoginLog
 
@@ -33,6 +33,15 @@ class DownloadLogSchema(SQLAlchemyAutoSchema):
 # Usage example
 download_log = DownloadLogSchema()
 download_logs = DownloadLogSchema(many=True)
+
+class ViewLogSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = ViewLog
+        load_instance = True
+
+# Usage example
+view_log = ViewLogSchema()
+view_logs = ViewLogSchema(many=True)
 
 
 

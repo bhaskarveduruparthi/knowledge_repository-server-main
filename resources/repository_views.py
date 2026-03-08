@@ -7,7 +7,7 @@ from models.user_model import  LoginLog, User
 from models.repository_model import KNR, DownloadLog, DownloadRequest, ViewLog
 from schemas.repository_schema import knr, knrs
 from schemas.user_schema import user, users
-from schemas.support_schema import login_log, login_logs, download_log, download_logs
+from schemas.support_schema import login_log, login_logs, download_log, download_logs, view_log,view_logs
 from default_settings import db
 from werkzeug.utils import secure_filename
 import pandas as pd
@@ -95,7 +95,7 @@ class KNR_Requirements(Resource):
 
         if checkuser is not None and checkuser.type == 'Superadmin':
             page = request.args.get('page', 1, type=int)
-            getrepos = KNR.query.filter_by(Approval_status='Approved').paginate(page=page, per_page=6)
+            getrepos = KNR.query.filter_by(Approval_status='Approved').paginate(page=page, per_page=10)
             result = []
             for r in getrepos.items:
                 result.append({
@@ -940,17 +940,17 @@ class KNR_Requirements(Resource):
         check_user = User.query.filter_by(yash_id=current_user).first()
         if check_user is not None and check_user.type == 'Superadmin':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Approved').paginate(page=page, per_page=6)
+            get_repos = KNR.query.filter_by(Approval_status='Approved').paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Approved', user_id=check_user.id).paginate(page=page, per_page=6)
+            get_repos = KNR.query.filter_by(Approval_status='Approved', user_id=check_user.id).paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         elif check_user is not None and check_user.type == 'user':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Approved',user_id=check_user.id).paginate(page=page, per_page=6)
+            get_repos = KNR.query.filter_by(Approval_status='Approved',user_id=check_user.id).paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         else:
@@ -984,17 +984,17 @@ class KNR_Requirements(Resource):
         check_user = User.query.filter_by(yash_id=current_user).first()
         if check_user is not None and check_user.type == 'Superadmin':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').paginate(page=page, per_page=6)
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval', user_id=check_user.id).paginate(page=page, per_page=6)
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval', user_id=check_user.id).paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         elif check_user is not None and check_user.type == 'user':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',user_id=check_user.id).paginate(page=page, per_page=6)
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',user_id=check_user.id).paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         else:
@@ -1072,17 +1072,17 @@ class KNR_Requirements(Resource):
         check_user = User.query.filter_by(yash_id=current_user).first()
         if check_user is not None and check_user.type == 'Superadmin':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Rejected').paginate(page=page, per_page=6)
+            get_repos = KNR.query.filter_by(Approval_status='Rejected').paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Rejected', user_id=check_user.id).paginate(page=page, per_page=6)
+            get_repos = KNR.query.filter_by(Approval_status='Rejected', user_id=check_user.id).paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         elif check_user is not None and check_user.type == 'user':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Rejected',user_id=check_user.id).paginate(page=page, per_page=6)
+            get_repos = KNR.query.filter_by(Approval_status='Rejected',user_id=check_user.id).paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         else:
@@ -1644,3 +1644,37 @@ class KNR_Requirements(Resource):
             getrepos = KNR.query.all()
             result = knrs.dump(getrepos)
         return jsonify(result)
+    
+    @rlp.route('/getviewlogs', methods=['GET'])
+    @jwt_required()
+    def getviewlogs():
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+        if check_user is not None and check_user.type == 'Superadmin':
+            page = request.args.get('page', 1, type=int)
+            get_logs = ViewLog.query.paginate(page=page, per_page=10)
+            result = view_logs.dump(get_logs)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            page = request.args.get('page', 1, type=int)
+            get_logs = ViewLog.query.paginate(page=page, per_page=10)
+            result = view_logs.dump(get_logs)
+            return jsonify(result)
+        else:
+            return jsonify("Not Authorized"), 401
+        
+    @rlp.route('/getviewlogrecords', methods=['GET'])
+    @jwt_required()
+    def getviewlogrecords():
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+        if check_user is not None and check_user.type == 'Superadmin':
+            get_logs = ViewLog.query.all()
+            result = view_logs.dump(get_logs)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            get_logs = ViewLog.query.all()
+            result = view_logs.dump(get_logs)
+            return jsonify(result)
+        else:
+            return jsonify("Not Authorized"), 401
