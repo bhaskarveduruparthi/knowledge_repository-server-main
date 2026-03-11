@@ -1,6 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 import secrets
 
+
 db = SQLAlchemy()
 def Create_Database(app):
      #Configure database with the MySQL database settings
@@ -24,3 +25,5 @@ def Create_Database(app):
     db.init_app(app)
     with app.app_context():
         db.create_all()
+        from resources.repository_views import seed_database
+        seed_database()
