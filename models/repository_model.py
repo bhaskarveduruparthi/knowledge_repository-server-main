@@ -34,6 +34,57 @@ class KNR(db.Model):
     
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     
+class Modules(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    module_name = db.Column(db.String(255), nullable=False)
+    key_name = db.Column(db.String(255), nullable=False)
+
+class Domain(db.Model):
+    __tablename__ = 'domains'
+
+    id         = db.Column(db.Integer, primary_key=True)
+    name       = db.Column(db.String(150), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    sectors    = db.relationship('Sector', backref='domain', lazy=True,
+                                 cascade='all, delete-orphan')
+
+    def to_dict(self, include_sectors=True):
+        d = {
+            'id':         self.id,
+            'name':       self.name,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+        if include_sectors:
+            d['sectors'] = [s.to_dict() for s in self.sectors]
+        return d
+
+
+class Sector(db.Model):
+    __tablename__ = 'sectors'
+
+    id         = db.Column(db.Integer, primary_key=True)
+    name       = db.Column(db.String(150), nullable=False)
+    domain_id  = db.Column(db.Integer, db.ForeignKey('domains.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('name', 'domain_id', name='uq_sector_domain'),
+    )
+
+    def to_dict(self):
+        return {
+            'id':         self.id,
+            'name':       self.name,
+            'domain_id':  self.domain_id,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 
     
 class DownloadLog(db.Model):

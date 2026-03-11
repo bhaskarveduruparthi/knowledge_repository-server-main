@@ -1,6 +1,6 @@
 from marshmallow import Schema , fields
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
-from models.repository_model import DownloadLog, ViewLog
+from models.repository_model import DownloadLog, Modules, ViewLog
 from models.support_model import Question, Answer
 from models.user_model import LoginLog
 
@@ -42,6 +42,14 @@ class ViewLogSchema(SQLAlchemyAutoSchema):
 # Usage example
 view_log = ViewLogSchema()
 view_logs = ViewLogSchema(many=True)
+
+class ModuleSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = Modules
+        load_instance = True
+
+module = ModuleSchema()
+modules = ModuleSchema(many=True)
 
 
 

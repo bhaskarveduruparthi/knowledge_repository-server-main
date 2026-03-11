@@ -4,10 +4,10 @@ from flask import Response, current_app, request, jsonify, send_file
 from flask_restful import Resource
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models.user_model import  LoginLog, User
-from models.repository_model import KNR, DownloadLog, DownloadRequest, ViewLog
+from models.repository_model import KNR, Domain, DownloadLog, DownloadRequest, Modules, Sector, ViewLog
 from schemas.repository_schema import knr, knrs
 from schemas.user_schema import user, users
-from schemas.support_schema import login_log, login_logs, download_log, download_logs, view_log,view_logs
+from schemas.support_schema import login_log, login_logs, download_log, download_logs, view_log,view_logs, modules,module
 from default_settings import db
 from werkzeug.utils import secure_filename
 import pandas as pd
@@ -1678,3 +1678,283 @@ class KNR_Requirements(Resource):
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
+        
+    @rlp.route('/getmodules', methods=['GET'])
+    @jwt_required()
+    def getmodules():
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+        if check_user is not None:
+            get_modules = Modules.query.all()
+            result = modules.dump(get_modules)
+            return jsonify(result)
+        else:
+            return jsonify("Not Authorized"), 401
+        
+    # POST  /addmodule  ── create a new module
+    @rlp.route('/addmodule', methods=['POST'])
+    @jwt_required()
+    def addmodule():
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+        if check_user is None:
+            return jsonify("Not Authorized"), 401
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        module_name = data.get('module_name', '').strip()
+        key_name    = data.get('key_name', '').strip()
+
+        if not module_name or not key_name:
+            return jsonify({"error": "module_name and key_name are required"}), 400
+
+        # Check for duplicate key_name
+        existing = Modules.query.filter_by(key_name=key_name).first()
+        if existing:
+            return jsonify({"error": f"A module with key_name '{key_name}' already exists"}), 409
+
+        new_module = Modules(module_name=module_name, key_name=key_name)
+        db.session.add(new_module)
+        db.session.commit()
+        result = module.dump(new_module)
+        return jsonify(result), 201
+
+
+    # PUT  /editmodule/<id>  ── update an existing module
+    @rlp.route('/editmodule/<int:id>', methods=['PUT'])
+    @jwt_required()
+    def editmodule(id):
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+        if check_user is None:
+            return jsonify("Not Authorized"), 401
+
+        get_module = Modules.query.get(id)
+        if get_module is None:
+            return jsonify({"error": "Module not found"}), 404
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+
+        module_name = data.get('module_name', '').strip()
+        key_name    = data.get('key_name', '').strip()
+
+        if not module_name or not key_name:
+            return jsonify({"error": "module_name and key_name are required"}), 400
+
+        # Check duplicate key_name only if it changed
+        if key_name != get_module.key_name:
+            existing = Modules.query.filter_by(key_name=key_name).first()
+            if existing:
+                return jsonify({"error": f"A module with key_name '{key_name}' already exists"}), 409
+
+        get_module.module_name = module_name
+        get_module.key_name    = key_name
+        db.session.commit()
+        result = module.dump(get_module)
+        return jsonify(result), 200
+
+
+    # DELETE  /deletemodule/<id>  ── remove a module
+    @rlp.route('/deletemodule/<int:id>', methods=['DELETE'])
+    @jwt_required()
+    def deletemodule(id):
+        current_user = get_jwt_identity()
+        check_user = User.query.filter_by(yash_id=current_user).first()
+        if check_user is None:
+            return jsonify("Not Authorized"), 401
+
+        get_module = Modules.query.get(id)
+        if get_module is None:
+            return jsonify({"error": "Module not found"}), 404
+
+        db.session.delete(get_module)
+        db.session.commit()
+
+        return jsonify({"message": f"Module '{module.module_name}' deleted successfully"}), 200
+    
+    @rlp.route('/domains', methods=['GET'])
+    def get_all_domains():
+        """Return all domains with their sectors (paginated optional)."""
+        page     = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 0, type=int)   # 0 = no pagination
+
+        if per_page > 0:
+            paginated = Domain.query.order_by(Domain.name).paginate(
+                page=page, per_page=per_page, error_out=False
+            )
+            return jsonify({
+                'domains':      [d.to_dict() for d in paginated.items],
+                'total':        paginated.total,
+                'page':         paginated.page,
+                'per_page':     paginated.per_page,
+                'total_pages':  paginated.pages,
+            })
+
+        domains = Domain.query.order_by(Domain.name).all()
+        return jsonify([d.to_dict() for d in domains])
+
+
+    @rlp.route('/domains/<int:domain_id>', methods=['GET'])
+    def get_domain(domain_id):
+        domain = Domain.query.get_or_404(domain_id)
+        return jsonify(domain.to_dict())
+
+
+    @rlp.route('/domains', methods=['POST'])
+    def create_domain():
+        data = request.get_json()
+        if not data or not data.get('name', '').strip():
+            return jsonify({'error': 'Domain name is required'}), 400
+
+        name = data['name'].strip()
+        if Domain.query.filter_by(name=name).first():
+            return jsonify({'error': f'Domain "{name}" already exists'}), 409
+
+        domain = Domain(name=name)
+        db.session.add(domain)
+
+        # Optionally create sectors inline
+        for sector_name in data.get('sectors', []):
+            s_name = sector_name.strip()
+            if s_name:
+                db.session.add(Sector(name=s_name, domain=domain))
+
+        db.session.commit()
+        return jsonify(domain.to_dict()), 201
+
+
+    @rlp.route('/domains/<int:domain_id>', methods=['PUT'])
+    def update_domain(domain_id):
+        domain = Domain.query.get_or_404(domain_id)
+        data   = request.get_json()
+
+        if not data or not data.get('name', '').strip():
+            return jsonify({'error': 'Domain name is required'}), 400
+
+        new_name = data['name'].strip()
+        conflict = Domain.query.filter(Domain.name == new_name, Domain.id != domain_id).first()
+        if conflict:
+            return jsonify({'error': f'Domain "{new_name}" already exists'}), 409
+
+        domain.name       = new_name
+        domain.updated_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify(domain.to_dict())
+
+
+    @rlp.route('/domains/<int:domain_id>', methods=['DELETE'])
+    def delete_domain(domain_id):
+        domain = Domain.query.get_or_404(domain_id)
+        db.session.delete(domain)
+        db.session.commit()
+        return jsonify({'message': f'Domain "{domain.name}" deleted successfully'})
+
+
+    # ════════════════════════════════════════════════════════════════════════════
+    #  SECTOR ENDPOINTS
+    # ════════════════════════════════════════════════════════════════════════════
+
+    @rlp.route('/domains/<int:domain_id>/sectors', methods=['GET'])
+    def get_sectors_for_domain(domain_id):
+        Domain.query.get_or_404(domain_id)
+        sectors = Sector.query.filter_by(domain_id=domain_id).order_by(Sector.name).all()
+        return jsonify([s.to_dict() for s in sectors])
+
+
+    @rlp.route('/sectors', methods=['GET'])
+    def get_all_sectors():
+        sectors = Sector.query.order_by(Sector.name).all()
+        return jsonify([s.to_dict() for s in sectors])
+
+
+    @rlp.route('/sectors/<int:sector_id>', methods=['GET'])
+    def get_sector(sector_id):
+        sector = Sector.query.get_or_404(sector_id)
+        return jsonify(sector.to_dict())
+
+
+    @rlp.route('/domains/<int:domain_id>/sectors', methods=['POST'])
+    def create_sector(domain_id):
+        Domain.query.get_or_404(domain_id)
+        data = request.get_json()
+
+        if not data or not data.get('name', '').strip():
+            return jsonify({'error': 'Sector name is required'}), 400
+
+        name = data['name'].strip()
+        existing = Sector.query.filter_by(name=name, domain_id=domain_id).first()
+        if existing:
+            return jsonify({'error': f'Sector "{name}" already exists in this domain'}), 409
+
+        sector = Sector(name=name, domain_id=domain_id)
+        db.session.add(sector)
+        db.session.commit()
+        return jsonify(sector.to_dict()), 201
+
+
+    @rlp.route('/sectors/<int:sector_id>', methods=['PUT'])
+    def update_sector(sector_id):
+        sector = Sector.query.get_or_404(sector_id)
+        data   = request.get_json()
+
+        if not data or not data.get('name', '').strip():
+            return jsonify({'error': 'Sector name is required'}), 400
+
+        new_name  = data['name'].strip()
+        domain_id = data.get('domain_id', sector.domain_id)
+
+        conflict = Sector.query.filter(
+            Sector.name == new_name,
+            Sector.domain_id == domain_id,
+            Sector.id != sector_id
+        ).first()
+        if conflict:
+            return jsonify({'error': f'Sector "{new_name}" already exists in this domain'}), 409
+
+        sector.name       = new_name
+        sector.domain_id  = domain_id
+        sector.updated_at = datetime.utcnow()
+        db.session.commit()
+        return jsonify(sector.to_dict())
+
+
+    @rlp.route('/sectors/<int:sector_id>', methods=['DELETE'])
+    def delete_sector(sector_id):
+        sector = Sector.query.get_or_404(sector_id)
+        db.session.delete(sector)
+        db.session.commit()
+        return jsonify({'message': f'Sector "{sector.name}" deleted successfully'})
+
+
+    # ════════════════════════════════════════════════════════════════════════════
+    #  BULK OPERATIONS
+    # ════════════════════════════════════════════════════════════════════════════
+
+    @rlp.route('/domains/<int:domain_id>/sectors/bulk', methods=['POST'])
+    def bulk_create_sectors(domain_id):
+        """Add multiple sectors to a domain at once."""
+        Domain.query.get_or_404(domain_id)
+        data = request.get_json()
+        names = data.get('sectors', [])
+
+        if not names:
+            return jsonify({'error': 'No sector names provided'}), 400
+
+        created, skipped = [], []
+        for name in names:
+            name = name.strip()
+            if not name:
+                continue
+            if Sector.query.filter_by(name=name, domain_id=domain_id).first():
+                skipped.append(name)
+            else:
+                s = Sector(name=name, domain_id=domain_id)
+                db.session.add(s)
+                created.append(name)
+
+        db.session.commit()
+        return jsonify({'created': created, 'skipped': skipped}), 201
