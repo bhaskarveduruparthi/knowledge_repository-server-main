@@ -21,70 +21,7 @@ from openpyxl import load_workbook
 from io import BytesIO
 
 
-SEED_DATA = [
-    {'domain': 'Technology',                  'sectors': ['Software', 'Hardware', 'IT Services', 'AI & Data Science']},
-    {'domain': 'Healthcare',                  'sectors': ['Hospitals', 'Pharmaceuticals', 'Biotechnology', 'Medical Devices']},
-    {'domain': 'Finance',                     'sectors': ['Banking', 'Insurance', 'Investment', 'FinTech']},
-    {'domain': 'Education',                   'sectors': ['Schools', 'Universities', 'EdTech', 'Vocational Training']},
-    {'domain': 'Manufacturing',               'sectors': ['Automotive', 'Electronics', 'Textiles', 'Machinery']},
-    {'domain': 'Energy',                      'sectors': ['Oil & Gas', 'Renewables', 'Utilities', 'Mining']},
-    {'domain': 'Retail',                      'sectors': ['E-commerce', 'FMCG', 'Luxury Goods', 'Consumer Electronics']},
-    {'domain': 'Agriculture',                 'sectors': ['Farming', 'AgriTech', 'Food Processing', 'Dairy']},
-    {'domain': 'Transport',                   'sectors': ['Aviation', 'Shipping', 'Railways', 'Logistics']},
-    {'domain': 'Media & Entertainment',       'sectors': ['Film', 'Television', 'Gaming', 'Publishing']},
-    {'domain': 'Government & Public Sector',  'sectors': ['Defense', 'Administration', 'Infrastructure', 'Policy']},
-    {'domain': 'Telecommunications',          'sectors': ['Mobile Networks', 'Broadband', 'Satellite', 'IoT']},
-    {'domain': 'Real Estate',                 'sectors': ['Residential', 'Commercial', 'Industrial', 'Smart Cities']},
-    {'domain': 'Hospitality',                 'sectors': ['Hotels', 'Restaurants', 'Travel Agencies', 'Tourism']},
-    {'domain': 'Legal',                       'sectors': ['Law Firms', 'Corporate Law', 'Intellectual Property', 'Compliance']},
-    {'domain': 'Environmental Services',      'sectors': ['Waste Management', 'Recycling', 'Water Treatment', 'Sustainability Consulting']},
-    {'domain': 'Construction',                'sectors': ['Civil Engineering', 'Urban Development', 'Smart Infrastructure', 'Housing Projects']},
-    {'domain': 'Fashion',                     'sectors': ['Apparel', 'Footwear', 'Accessories', 'Luxury Brands']},
-    {'domain': 'Sports',                      'sectors': ['Professional Teams', 'Sportswear', 'Events Management', 'Fitness']},
-    {'domain': 'Food & Beverage',             'sectors': ['Restaurants', 'Packaged Foods', 'Beverages', 'Nutrition']},
-    {'domain': 'Aerospace',                   'sectors': ['Defense Aviation', 'Commercial Airlines', 'Space Exploration', 'Drones']},
-    {'domain': 'Chemicals',                   'sectors': ['Industrial Chemicals', 'Petrochemicals', 'Agrochemicals', 'Specialty Chemicals']},
-    {'domain': 'Logistics & Supply Chain',    'sectors': ['Warehousing', 'Distribution', 'Freight Forwarding', 'Cold Chain']},
-    {'domain': 'Non-Profit & NGOs',           'sectors': ['Charities', 'Foundations', 'Social Work', 'Community Development']},
-    {'domain': 'Cybersecurity',               'sectors': ['Network Security', 'Data Protection', 'Cloud Security', 'Risk Management']},
-    {'domain': 'Human Resources',             'sectors': ['Recruitment', 'Training', 'Payroll', 'Employee Engagement']},
-    {'domain': 'Art & Culture',               'sectors': ['Museums', 'Performing Arts', 'Heritage Conservation', 'Design']},
-    {'domain': 'Mining & Metals',             'sectors': ['Iron & Steel', 'Precious Metals', 'Rare Earths', 'Industrial Minerals']},
-    {'domain': 'Electronics',                 'sectors': ['Consumer Electronics', 'Semiconductors', 'Wearables', 'Smart Devices']},
-    {'domain': 'Insurance',                   'sectors': ['Life Insurance', 'Health Insurance', 'Property Insurance', 'Reinsurance']},
-    {'domain': 'Publishing',                  'sectors': ['Books', 'Magazines', 'Digital Media', 'Academic Journals']},
-    {'domain': 'Consulting',                  'sectors': ['Management Consulting', 'IT Consulting', 'Strategy', 'Operations']},
-    {'domain': 'Transportation Services',     'sectors': ['Ride-Sharing', 'Public Transit', 'Courier Services', 'Fleet Management']},
-    {'domain': 'Marine',                      'sectors': ['Shipping', 'Fishing', 'Ports', 'Marine Engineering']},
-    {'domain': 'Luxury',                      'sectors': ['Jewelry', 'High-End Fashion', 'Luxury Cars', 'Exclusive Travel']},
-    {'domain': 'Automation & Robotics',       'sectors': ['Industrial Robots', 'Service Robots', 'AI Robotics', 'Automation Systems']},
-    {'domain': 'Biotechnology',               'sectors': ['Genomics', 'Stem Cell Research', 'Bioinformatics', 'Medical Research']},
-    {'domain': 'Tourism',                     'sectors': ['Adventure Tourism', 'Eco-Tourism', 'Cultural Tourism', 'Cruises']},
-    {'domain': 'Gaming',                      'sectors': ['Esports', 'Mobile Games', 'Console Games', 'VR/AR Gaming']},
-    {'domain': 'Advertising & Marketing',     'sectors': ['Digital Marketing', 'Branding', 'Market Research', 'Public Relations']},
-    {'domain': 'Security Services',           'sectors': ['Private Security', 'Surveillance', 'Risk Assessment', 'Emergency Response']},
-    {'domain': 'Transportation Infrastructure', 'sectors': ['Highways', 'Railways', 'Airports', 'Ports']},
-    {'domain': 'Pharmaceuticals',             'sectors': ['Drug Development', 'Generic Drugs', 'Clinical Trials', 'Distribution']},
-    {'domain': 'Veterinary',                  'sectors': ['Animal Healthcare', 'Pet Products', 'Livestock Services', 'Research']},
-    {'domain': 'Renewables',                  'sectors': ['Solar', 'Wind', 'Hydropower', 'Geothermal']},
-    {'domain': 'Cloud Computing',             'sectors': ['SaaS', 'PaaS', 'IaaS', 'Hybrid Cloud']},
-    {'domain': 'Artificial Intelligence',     'sectors': ['Machine Learning', 'Natural Language Processing', 'Computer Vision', 'Robotics']},
-    {'domain': 'Blockchain',                  'sectors': ['Cryptocurrency', 'Smart Contracts', 'Supply Chain Blockchain', 'DeFi']},
-    {'domain': 'Space Industry',              'sectors': ['Satellites', 'Space Tourism', 'Asteroid Mining', 'Rocket Manufacturing']},
-]
 
-
-def seed_database():
-    if Domain.query.count() == 0:
-        for item in SEED_DATA:
-            domain = Domain(name=item['domain'])
-            db.session.add(domain)
-            db.session.flush()
-            for sector_name in item['sectors']:
-                sector = Sector(name=sector_name, domain_id=domain.id)
-                db.session.add(sector)
-        db.session.commit()
-        print('Database seeded successfully.')
 
 FILTER_COLUMN_MAP = {
     "Domain": "domain",

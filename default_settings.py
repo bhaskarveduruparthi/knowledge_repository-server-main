@@ -5,7 +5,7 @@ import secrets
 db = SQLAlchemy()
 def Create_Database(app):
      #Configure database with the MySQL database settings
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:Saibhaskar9@LocalHost:3306/knwldg_repository'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://admin:Saibhaskar9@10.6.102.245:3306/knwldg_repository'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['UPLOAD_FOLDER'] = 'uploads/'
     app.config["JWT_TOKEN_LOCATION"] = ["headers", "query_string"]  # allow query too
@@ -25,5 +25,4 @@ def Create_Database(app):
     db.init_app(app)
     with app.app_context():
         db.create_all()
-        from resources.repository_views import seed_database
-        seed_database()
+        
