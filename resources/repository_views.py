@@ -1497,14 +1497,31 @@ class KNR_Requirements(Resource):
     @rlp.route('/all-approved', methods=['GET'])
     @jwt_required()
     def get_all_approved():
-        identity   = get_jwt_identity()
-        user       = User.query.filter_by(yash_id=identity).first()
-
+        identity = get_jwt_identity()
+        user     = User.query.filter_by(yash_id=identity).first()
+ 
         if user is None:
             return jsonify({'error': 'User not found'}), 401
-
-        results = KNR.query.filter_by(Approval_status='Approved').all()
-        return jsonify(_serialize_with_access(results, user)), 200
+ 
+        page     = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 12, type=int)
+ 
+        # Cap per_page to avoid abuse; 10000 triggers "all" mode for legacy callers
+        if per_page >= 10000:
+            results = KNR.query.filter_by(Approval_status='Approved').all()
+            return jsonify(_serialize_with_access(results, user)), 200
+ 
+        paginated = KNR.query.filter_by(Approval_status='Approved').paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+ 
+        return jsonify({
+            'items':    _serialize_with_access(paginated.items, user),
+            'total':    paginated.total,
+            'page':     paginated.page,
+            'has_more': paginated.has_next,
+        }), 200
+ 
     
     @rlp.route('/getalladdedrepos', methods=['GET'])
     @jwt_required()
