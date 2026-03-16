@@ -19,6 +19,7 @@ from sqlalchemy import func
 import numpy as np
 from openpyxl import load_workbook
 from io import BytesIO
+from extensions.REDIS import redis
 
 
 
@@ -268,17 +269,22 @@ class KNR_Requirements(Resource):
     def getapprovalreposrecords():
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
+
+        cache_key = f'approvalreposrecords_{check_user.id}'
+        cached = redis.get(cache_key)
+        if cached:
+            return jsonify(cached)
+
         if check_user is not None and check_user.type == 'Superadmin':
             get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').all()
-            result = knrs.dump(get_repos)
-            return jsonify(result)
-        if check_user is not None and check_user.type == 'manager':
-            
-            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',Approver=check_user.name).all()
-            result = knrs.dump(get_repos)
-            return jsonify(result)
+        elif check_user is not None and check_user.type == 'manager':
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval', Approver=check_user.name).all()
         else:
             return jsonify("Not Authorized"), 401
+
+        result = knrs.dump(get_repos)
+        redis.set(cache_key, result, timeout=120)
+        return jsonify(result)
 
 
     
@@ -320,6 +326,13 @@ class KNR_Requirements(Resource):
 
             db.session.add(new_repo)
             db.session.commit()
+            # Clear all affected caches after any write
+            redis.delete_many(
+                'allreporecords_Superadmin', 'allreporecords_manager', 'allreporecords_user',
+                'repo_by_module', 'repo_by_domain', 'top_users_solutions',
+                'counts_Superadmin', 'counts_manager', 'counts_user',
+                'all_modules', 'all_domains', 'all_sectors', 'all_logs'
+            )
 
             return jsonify({'message': 'Repository created and approval email sent to IRM successfully','id': new_repo.id, 'repository': data}), 201
         else:
@@ -330,17 +343,16 @@ class KNR_Requirements(Resource):
     def getallreporecords():
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
-        if check_user is not None and check_user.type == 'Superadmin':
+
+        cache_key = f'allreporecords_{check_user.type}'
+        cached = redis.get(cache_key)
+        if cached:
+            return jsonify(cached)
+
+        if check_user is not None and check_user.type in ('Superadmin', 'manager', 'user'):
             get_repos = KNR.query.filter_by(Approval_status='Approved').all()
             result = knrs.dump(get_repos)
-            return jsonify(result)
-        if check_user is not None and check_user.type == 'manager':
-            get_repos = KNR.query.filter_by(Approval_status='Approved').all()
-            result = knrs.dump(get_repos)
-            return jsonify(result)
-        elif check_user is not None and check_user.type == 'user':
-            get_repos = KNR.query.filter_by(Approval_status='Approved').all()
-            result = knrs.dump(get_repos)
+            redis.set(cache_key, result, timeout=300)
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
@@ -508,6 +520,13 @@ class KNR_Requirements(Resource):
 
         db.session.add_all(records)
         db.session.commit()
+        # Clear all affected caches after any write
+        redis.delete_many(
+            'allreporecords_Superadmin', 'allreporecords_manager', 'allreporecords_user',
+            'repo_by_module', 'repo_by_domain', 'top_users_solutions',
+            'counts_Superadmin', 'counts_manager', 'counts_user',
+            'all_modules', 'all_domains', 'all_sectors', 'all_logs'
+        )
         return jsonify({'message': f"{len(records)} records inserted successfully"}), 200
 
 
@@ -522,6 +541,13 @@ class KNR_Requirements(Resource):
             check_repo.Approval_status = "Approved"
             check_repo.Approval_date = datetime.utcnow().date()
             db.session.commit()
+            # Clear all affected caches after any write
+            redis.delete_many(
+                'allreporecords_Superadmin', 'allreporecords_manager', 'allreporecords_user',
+                'repo_by_module', 'repo_by_domain', 'top_users_solutions',
+                'counts_Superadmin', 'counts_manager', 'counts_user',
+                'all_modules', 'all_domains', 'all_sectors', 'all_logs'
+            )
             return jsonify("Status of the Repo Changed to Approved and user notified"), 200
 
         else:
@@ -539,6 +565,13 @@ class KNR_Requirements(Resource):
             check_repo.Approver = check_user.name
             check_repo.Approval_date = datetime.utcnow().date()
             db.session.commit()
+            # Clear all affected caches after any write
+            redis.delete_many(
+                'allreporecords_Superadmin', 'allreporecords_manager', 'allreporecords_user',
+                'repo_by_module', 'repo_by_domain', 'top_users_solutions',
+                'counts_Superadmin', 'counts_manager', 'counts_user',
+                'all_modules', 'all_domains', 'all_sectors', 'all_logs'
+            )
             return jsonify("Status of the Repo Changed to Rejected and user notified"), 200
 
         else:
@@ -575,31 +608,27 @@ class KNR_Requirements(Resource):
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
 
-        if check_user is not None and check_user.type == 'Superadmin':
+        if check_user is not None and check_user.type in ('Superadmin', 'user', 'manager'):
+            cache_key = f'counts_{check_user.type}'
+            cached = redis.get(cache_key)
+            if cached:
+                return jsonify(cached)
+
             total_repos = KNR.query.count()
             approved_repos = KNR.query.filter_by(Approval_status='Approved').count()
             unapproved_repos = KNR.query.filter_by(Approval_status='Rejected').count()
             sent_for_approval_repos = KNR.query.filter_by(Approval_status='Sent for Approval').count()
-            
-        elif check_user is not None and check_user.type == 'user':
-            total_repos = KNR.query.count()
-            approved_repos = KNR.query.filter_by(Approval_status='Approved').count()
-            unapproved_repos = KNR.query.filter_by(Approval_status='Rejected').count()
-            sent_for_approval_repos = KNR.query.filter_by(Approval_status='Sent for Approval').count()
-        elif check_user is not None and check_user.type == 'manager':
-            total_repos = KNR.query.count()
-            approved_repos = KNR.query.filter_by(Approval_status='Approved').count()
-            unapproved_repos = KNR.query.filter_by(Approval_status='Rejected').count()
-            sent_for_approval_repos = KNR.query.filter_by(Approval_status='Sent for Approval').count()
+
+            result = {
+                "all_repos_count": total_repos,
+                "approved_repos_count": approved_repos,
+                "unapproved_repos_count": unapproved_repos,
+                "sentforapproval_count": sent_for_approval_repos
+            }
+            redis.set(cache_key, result, timeout=120)
+            return jsonify(result), 200
         else:
             return jsonify({"msg": "Unauthorized"}), 401
-
-        return jsonify({
-            "all_repos_count": total_repos,
-            "approved_repos_count": approved_repos,
-            "unapproved_repos_count": unapproved_repos,
-            "sentforapproval_count": sent_for_approval_repos
-        }), 200
 
 
     @rlp.route('/download-file/<int:id>', methods=['GET'])
@@ -653,6 +682,13 @@ class KNR_Requirements(Resource):
             if check_repo is not None:
                 db.session.delete(check_repo)
                 db.session.commit()
+                # Clear all affected caches after any write
+                redis.delete_many(
+                    'allreporecords_Superadmin', 'allreporecords_manager', 'allreporecords_user',
+                    'repo_by_module', 'repo_by_domain', 'top_users_solutions',
+                    'counts_Superadmin', 'counts_manager', 'counts_user',
+                    'all_modules', 'all_domains', 'all_sectors', 'all_logs'
+                )
                 return jsonify("Repo Deleted")
             else:
                 return jsonify("Repo Not Found")
@@ -716,6 +752,8 @@ class KNR_Requirements(Resource):
         )
         db.session.add(log)
         db.session.commit()
+        redis.delete('download_log_records')
+        redis.delete('view_log_records')
 
         filename = check_file.attachment_filename or f"repository_{check_file.id}"
         filedata = check_file.attachment_data
@@ -794,6 +832,8 @@ class KNR_Requirements(Resource):
         )
         db.session.add(log)
         db.session.commit()
+        redis.delete('download_log_records')
+        redis.delete('view_log_records')
 
         # ── Build response ──────────────────────────────────────────────────────
         response = send_file(
@@ -843,21 +883,11 @@ class KNR_Requirements(Resource):
         if current_user is None:
             return jsonify({"msg": "Unauthorized"}), 401
 
-        if check_user.type == 'Superadmin':
-            data = (
-                db.session.query(KNR.module_name, func.count(KNR.id))
-                .filter(KNR.Approval_status == 'Approved')
-                .group_by(KNR.module_name)
-                .all()
-            )
-        elif check_user.type == 'manager':
-            data = (
-                db.session.query(KNR.module_name, func.count(KNR.id))
-                .filter(KNR.Approval_status == 'Approved')
-                .group_by(KNR.module_name)
-                .all()
-            )
-        elif check_user.type == 'user':
+        cached = redis.get('repo_by_module')
+        if cached:
+            return jsonify(cached)
+
+        if check_user.type in ('Superadmin', 'manager', 'user'):
             data = (
                 db.session.query(KNR.module_name, func.count(KNR.id))
                 .filter(KNR.Approval_status == 'Approved')
@@ -868,6 +898,7 @@ class KNR_Requirements(Resource):
             return jsonify({"msg": "Forbidden"}), 403
 
         result = {module: count for module, count in data}
+        redis.set('repo_by_module', result, timeout=300)
         return jsonify(result), 200
 
 
@@ -879,18 +910,21 @@ class KNR_Requirements(Resource):
 
         if current_user is None:
             return jsonify({"msg": "Unauthorized"}), 401
-        
-        if check_user.type == 'Superadmin':
-            data = db.session.query(KNR.domain, func.count(KNR.id)).filter(KNR.Approval_status == 'Approved').group_by(KNR.domain).all()
-        elif check_user.type == 'manager':
-            data = db.session.query(KNR.domain, func.count(KNR.id)).filter(KNR.Approval_status == 'Approved').group_by(KNR.domain).all()
-        elif check_user.type == 'user':
-            data = db.session.query(KNR.domain, func.count(KNR.id)).filter(KNR.Approval_status == 'Approved').group_by(KNR.domain).all()
+
+        cached = redis.get('repo_by_domain')
+        if cached:
+            return jsonify(cached)
+
+        if check_user.type in ('Superadmin', 'manager', 'user'):
+            data = db.session.query(KNR.domain, func.count(KNR.id))\
+                .filter(KNR.Approval_status == 'Approved')\
+                .group_by(KNR.domain).all()
         else:
             return jsonify({"msg": "Forbidden"}), 403
-        
+
         result = {domain: count for domain, count in data}
-        return jsonify(result)
+        redis.set('repo_by_domain', result, timeout=300)
+        return jsonify(result), 200
 
 
     @rlp.route('/search', methods=['GET'])
@@ -961,20 +995,22 @@ class KNR_Requirements(Resource):
     def getallapprovedreporecords():
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
+
+        cache_key = f'approvedreporecords_{check_user.id}'
+        cached = redis.get(cache_key)
+        if cached:
+            return jsonify(cached)
+
         if check_user is not None and check_user.type == 'Superadmin':
             get_repos = KNR.query.filter_by(Approval_status='Approved').all()
-            result = knrs.dump(get_repos)
-            return jsonify(result)
-        if check_user is not None and check_user.type == 'manager':
+        elif check_user is not None and check_user.type in ('manager', 'user'):
             get_repos = KNR.query.filter_by(Approval_status='Approved', user_id=check_user.id).all()
-            result = knrs.dump(get_repos)
-            return jsonify(result)
-        elif check_user is not None and check_user.type == 'user':
-            get_repos = KNR.query.filter_by(Approval_status='Approved',user_id=check_user.id).all()
-            result = knrs.dump(get_repos)
-            return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
+
+        result = knrs.dump(get_repos)
+        redis.set(cache_key, result, timeout=300)
+        return jsonify(result)
 
 
     @rlp.route('/getallpendingrepos', methods=['GET'])
@@ -1005,20 +1041,22 @@ class KNR_Requirements(Resource):
     def getallpendingreporecords():
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
+
+        cache_key = f'pendingreporecords_{check_user.id}'
+        cached = redis.get(cache_key)
+        if cached:
+            return jsonify(cached)
+
         if check_user is not None and check_user.type == 'Superadmin':
             get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').all()
-            result = knrs.dump(get_repos)
-            return jsonify(result)
-        if check_user is not None and check_user.type == 'manager':
-            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',user_id=check_user.id).all()
-            result = knrs.dump(get_repos)
-            return jsonify(result)
-        elif check_user is not None and check_user.type == 'user':
-            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',user_id=check_user.id).all()
-            result = knrs.dump(get_repos)
-            return jsonify(result)
+        elif check_user is not None and check_user.type in ('manager', 'user'):
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval', user_id=check_user.id).all()
         else:
             return jsonify("Not Authorized"), 401
+
+        result = knrs.dump(get_repos)
+        redis.set(cache_key, result, timeout=120)
+        return jsonify(result)
 
 
     @rlp.route('/getallunapprovedrepos', methods=['GET'])
@@ -1093,20 +1131,22 @@ class KNR_Requirements(Resource):
     def getallrejectedreporecords():
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
+
+        cache_key = f'rejectedreporecords_{check_user.id}'
+        cached = redis.get(cache_key)
+        if cached:
+            return jsonify(cached)
+
         if check_user is not None and check_user.type == 'Superadmin':
             get_repos = KNR.query.filter_by(Approval_status='Rejected').all()
-            result = knrs.dump(get_repos)
-            return jsonify(result)
-        if check_user is not None and check_user.type == 'manager':
+        elif check_user is not None and check_user.type in ('manager', 'user'):
             get_repos = KNR.query.filter_by(Approval_status='Rejected', user_id=check_user.id).all()
-            result = knrs.dump(get_repos)
-            return jsonify(result)
-        elif check_user is not None and check_user.type == 'user':
-            get_repos = KNR.query.filter_by(Approval_status='Rejected',user_id=check_user.id).all()
-            result = knrs.dump(get_repos)
-            return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
+
+        result = knrs.dump(get_repos)
+        redis.set(cache_key, result, timeout=300)
+        return jsonify(result)
 
     @rlp.route('/getlogs', methods=['GET'])
     @jwt_required()
@@ -1131,13 +1171,15 @@ class KNR_Requirements(Resource):
     def getlogrecords():
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
-        if check_user is not None and check_user.type == 'Superadmin':
+
+        if check_user is not None and check_user.type in ('Superadmin', 'manager'):
+            cached = redis.get('log_records')
+            if cached:
+                return jsonify(cached)
+
             get_logs = LoginLog.query.all()
             result = login_logs.dump(get_logs)
-            return jsonify(result)
-        if check_user is not None and check_user.type == 'manager':
-            get_logs = LoginLog.query.all()
-            result = login_logs.dump(get_logs)
+            redis.set('log_records', result, timeout=120)
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
@@ -1165,19 +1207,25 @@ class KNR_Requirements(Resource):
     def getdownloadlogrecords():
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
-        if check_user is not None and check_user.type == 'Superadmin':
+
+        if check_user is not None and check_user.type in ('Superadmin', 'manager'):
+            cached = redis.get('download_log_records')
+            if cached:
+                return jsonify(cached)
+
             get_logs = DownloadLog.query.all()
             result = download_logs.dump(get_logs)
-            return jsonify(result)
-        if check_user is not None and check_user.type == 'manager':
-            get_logs = DownloadLog.query.all()
-            result = download_logs.dump(get_logs)
+            redis.set('download_log_records', result, timeout=120)
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
         
     @rlp.route('/top-users-solutions', methods=['GET'])
     def top_users_solutions():
+        cached = redis.get('top_users_solutions')
+        if cached:
+            return jsonify(cached)
+
         top_users = (
             db.session.query(
                 KNR.username,
@@ -1188,19 +1236,21 @@ class KNR_Requirements(Resource):
             .limit(10)
             .all()
         )
-        
+
         labels = [user.username for user in top_users]
         data = [int(user.solution_count or 0) for user in top_users]
-        
-        return jsonify({
+
+        result = {
             'labels': labels,
             'datasets': [{
                 'label': 'Solutions',
                 'data': data,
-                'backgroundColor': ['#3e95cd', '#8e5ea2', '#3cba9f', '#e8c3b9', '#c45850', 
+                'backgroundColor': ['#3e95cd', '#8e5ea2', '#3cba9f', '#e8c3b9', '#c45850',
                                 '#36a2eb', '#ff6384', '#ffcd56', '#4bc0c0', '#9966ff']
             }]
-        })
+        }
+        redis.set('top_users_solutions', result, timeout=300)
+        return jsonify(result)
 
     @rlp.route('/download-request/<int:id>', methods=['POST'])
     @jwt_required()
@@ -1380,24 +1430,24 @@ class KNR_Requirements(Resource):
     @rlp.route('/download-all-logs', methods=['GET'])
     def download_all_logs():
         try:
+            cached = redis.get('all_logs')
+            if cached:
+                return jsonify(cached)
+
             all_logs = LoginLog.query.order_by(LoginLog.timestamp.desc()).all()
-            
-            logs_data = []
-            for log in all_logs:
-                logs_data.append({
-                    'id': log.id,
-                    'yash_id': log.yash_id,
-                    'ip_address': log.ip_address,
-                    'user_agent': log.user_agent,
-                    'success': log.success,
-                    'message': log.message,
-                    'timestamp': log.timestamp.isoformat() if log.timestamp else None
-                })
-            
+            logs_data = [{
+                'id': log.id,
+                'yash_id': log.yash_id,
+                'ip_address': log.ip_address,
+                'user_agent': log.user_agent,
+                'success': log.success,
+                'message': log.message,
+                'timestamp': log.timestamp.isoformat() if log.timestamp else None
+            } for log in all_logs]
+
+            redis.set('all_logs', logs_data, timeout=120)
             return jsonify(logs_data), 200
-            
         except Exception as e:
-            print(f"Error fetching all logs: {str(e)}")
             return jsonify({'error': 'Failed to fetch logs'}), 500
 
 
@@ -1636,17 +1686,16 @@ class KNR_Requirements(Resource):
     def getalladdedreporecords():
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
-        if check_user is not None and check_user.type == 'Superadmin':
+
+        cache_key = f'addedreporecords_{check_user.id}'
+        cached = redis.get(cache_key)
+        if cached:
+            return jsonify(cached)
+
+        if check_user is not None and check_user.type in ('Superadmin', 'manager', 'user'):
             get_repos = KNR.query.filter_by(user_id=check_user.id).all()
             result = knrs.dump(get_repos)
-            return jsonify(result)
-        if check_user is not None and check_user.type == 'manager':
-            get_repos = KNR.query.filter_by(user_id=check_user.id).all()
-            result = knrs.dump(get_repos)
-            return jsonify(result)
-        elif check_user is not None and check_user.type == 'user':
-            get_repos = KNR.query.filter_by(user_id=check_user.id).all()
-            result = knrs.dump(get_repos)
+            redis.set(cache_key, result, timeout=300)
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
@@ -1685,13 +1734,15 @@ class KNR_Requirements(Resource):
     def getviewlogrecords():
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
-        if check_user is not None and check_user.type == 'Superadmin':
+
+        if check_user is not None and check_user.type in ('Superadmin', 'manager'):
+            cached = redis.get('view_log_records')
+            if cached:
+                return jsonify(cached)
+
             get_logs = ViewLog.query.all()
             result = view_logs.dump(get_logs)
-            return jsonify(result)
-        if check_user is not None and check_user.type == 'manager':
-            get_logs = ViewLog.query.all()
-            result = view_logs.dump(get_logs)
+            redis.set('view_log_records', result, timeout=120)
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
@@ -1701,9 +1752,15 @@ class KNR_Requirements(Resource):
     def getmodules():
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
+
         if check_user is not None:
+            cached = redis.get('all_modules')
+            if cached:
+                return jsonify(cached)
+
             get_modules = Modules.query.all()
             result = modules.dump(get_modules)
+            redis.set('all_modules', result, timeout=600)
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
@@ -1735,6 +1792,13 @@ class KNR_Requirements(Resource):
         new_module = Modules(module_name=module_name, key_name=key_name)
         db.session.add(new_module)
         db.session.commit()
+        # Clear all affected caches after any write
+        redis.delete_many(
+            'allreporecords_Superadmin', 'allreporecords_manager', 'allreporecords_user',
+            'repo_by_module', 'repo_by_domain', 'top_users_solutions',
+            'counts_Superadmin', 'counts_manager', 'counts_user',
+            'all_modules', 'all_domains', 'all_sectors', 'all_logs'
+        )
         result = module.dump(new_module)
         return jsonify(result), 201
 
@@ -1771,6 +1835,13 @@ class KNR_Requirements(Resource):
         get_module.module_name = module_name
         get_module.key_name    = key_name
         db.session.commit()
+        # Clear all affected caches after any write
+        redis.delete_many(
+            'allreporecords_Superadmin', 'allreporecords_manager', 'allreporecords_user',
+            'repo_by_module', 'repo_by_domain', 'top_users_solutions',
+            'counts_Superadmin', 'counts_manager', 'counts_user',
+            'all_modules', 'all_domains', 'all_sectors', 'all_logs'
+        )
         result = module.dump(get_module)
         return jsonify(result), 200
 
@@ -1790,6 +1861,13 @@ class KNR_Requirements(Resource):
 
         db.session.delete(get_module)
         db.session.commit()
+        # Clear all affected caches after any write
+        redis.delete_many(
+            'allreporecords_Superadmin', 'allreporecords_manager', 'allreporecords_user',
+            'repo_by_module', 'repo_by_domain', 'top_users_solutions',
+            'counts_Superadmin', 'counts_manager', 'counts_user',
+            'all_modules', 'all_domains', 'all_sectors', 'all_logs'
+        )
 
         return jsonify({"message": f"Module '{module.module_name}' deleted successfully"}), 200
     
@@ -1841,6 +1919,13 @@ class KNR_Requirements(Resource):
                 db.session.add(Sector(name=s_name, domain=domain))
 
         db.session.commit()
+        # Clear all affected caches after any write
+        redis.delete_many(
+            'allreporecords_Superadmin', 'allreporecords_manager', 'allreporecords_user',
+            'repo_by_module', 'repo_by_domain', 'top_users_solutions',
+            'counts_Superadmin', 'counts_manager', 'counts_user',
+            'all_modules', 'all_domains', 'all_sectors', 'all_logs'
+        )
         return jsonify(domain.to_dict()), 201
 
 
@@ -1860,6 +1945,13 @@ class KNR_Requirements(Resource):
         domain.name       = new_name
         domain.updated_at = datetime.utcnow()
         db.session.commit()
+        # Clear all affected caches after any write
+        redis.delete_many(
+            'allreporecords_Superadmin', 'allreporecords_manager', 'allreporecords_user',
+            'repo_by_module', 'repo_by_domain', 'top_users_solutions',
+            'counts_Superadmin', 'counts_manager', 'counts_user',
+            'all_modules', 'all_domains', 'all_sectors', 'all_logs'
+        )
         return jsonify(domain.to_dict())
 
 
@@ -1868,6 +1960,13 @@ class KNR_Requirements(Resource):
         domain = Domain.query.get_or_404(domain_id)
         db.session.delete(domain)
         db.session.commit()
+        # Clear all affected caches after any write
+        redis.delete_many(
+            'allreporecords_Superadmin', 'allreporecords_manager', 'allreporecords_user',
+            'repo_by_module', 'repo_by_domain', 'top_users_solutions',
+            'counts_Superadmin', 'counts_manager', 'counts_user',
+            'all_modules', 'all_domains', 'all_sectors', 'all_logs'
+        )
         return jsonify({'message': f'Domain "{domain.name}" deleted successfully'})
 
 
@@ -1884,8 +1983,14 @@ class KNR_Requirements(Resource):
 
     @rlp.route('/sectors', methods=['GET'])
     def get_all_sectors():
+        cached = redis.get('all_sectors')
+        if cached:
+            return jsonify(cached)
+
         sectors = Sector.query.order_by(Sector.name).all()
-        return jsonify([s.to_dict() for s in sectors])
+        result = [s.to_dict() for s in sectors]
+        redis.set('all_sectors', result, timeout=600)
+        return jsonify(result)
 
 
     @rlp.route('/sectors/<int:sector_id>', methods=['GET'])
@@ -1910,6 +2015,13 @@ class KNR_Requirements(Resource):
         sector = Sector(name=name, domain_id=domain_id)
         db.session.add(sector)
         db.session.commit()
+        # Clear all affected caches after any write
+        redis.delete_many(
+            'allreporecords_Superadmin', 'allreporecords_manager', 'allreporecords_user',
+            'repo_by_module', 'repo_by_domain', 'top_users_solutions',
+            'counts_Superadmin', 'counts_manager', 'counts_user',
+            'all_modules', 'all_domains', 'all_sectors', 'all_logs'
+        )
         return jsonify(sector.to_dict()), 201
 
 
@@ -1936,6 +2048,13 @@ class KNR_Requirements(Resource):
         sector.domain_id  = domain_id
         sector.updated_at = datetime.utcnow()
         db.session.commit()
+        # Clear all affected caches after any write
+        redis.delete_many(
+            'allreporecords_Superadmin', 'allreporecords_manager', 'allreporecords_user',
+            'repo_by_module', 'repo_by_domain', 'top_users_solutions',
+            'counts_Superadmin', 'counts_manager', 'counts_user',
+            'all_modules', 'all_domains', 'all_sectors', 'all_logs'
+        )
         return jsonify(sector.to_dict())
 
 
@@ -1944,6 +2063,13 @@ class KNR_Requirements(Resource):
         sector = Sector.query.get_or_404(sector_id)
         db.session.delete(sector)
         db.session.commit()
+        # Clear all affected caches after any write
+        redis.delete_many(
+            'allreporecords_Superadmin', 'allreporecords_manager', 'allreporecords_user',
+            'repo_by_module', 'repo_by_domain', 'top_users_solutions',
+            'counts_Superadmin', 'counts_manager', 'counts_user',
+            'all_modules', 'all_domains', 'all_sectors', 'all_logs'
+        )
         return jsonify({'message': f'Sector "{sector.name}" deleted successfully'})
 
 

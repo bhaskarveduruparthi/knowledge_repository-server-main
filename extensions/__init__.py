@@ -1,4 +1,4 @@
-from extensions import JWT, CORS, CSRF, BCRYPT
+from extensions import JWT, CORS, CSRF, BCRYPT,REDIS
 from flask_restful import Api
 
 def Create_Extension(app):
@@ -10,6 +10,7 @@ def Create_Extension(app):
         JWT,
         CORS,
         BCRYPT,
+        REDIS
       
        
     ):
