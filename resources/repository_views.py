@@ -3,11 +3,11 @@ import mimetypes
 from flask import Response, current_app, request, jsonify, send_file
 from flask_restful import Resource
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models.user_model import LoginLog, User
+from models.user_model import  LoginLog, User
 from models.repository_model import KNR, Domain, DownloadLog, DownloadRequest, Modules, Sector, ViewLog
 from schemas.repository_schema import knr, knrs
 from schemas.user_schema import user, users
-from schemas.support_schema import login_log, login_logs, download_log, download_logs, view_log, view_logs, modules, module
+from schemas.support_schema import login_log, login_logs, download_log, download_logs, view_log,view_logs, modules,module
 from default_settings import db
 from werkzeug.utils import secure_filename
 import pandas as pd
@@ -19,8 +19,8 @@ from sqlalchemy import func
 import numpy as np
 from openpyxl import load_workbook
 from io import BytesIO
-from extensions.REDIS import redis
-import json
+
+
 
 
 FILTER_COLUMN_MAP = {
@@ -33,10 +33,8 @@ FILTER_COLUMN_MAP = {
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'xlsx'}
 
-
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
 
 def _serialize_with_access(results, user):
     """
@@ -56,107 +54,35 @@ def _serialize_with_access(results, user):
 
     return [
         {
-            'id': r.id,
-            'customer_name': r.customer_name,
-            'domain': r.domain,
-            'sector': r.sector,
-            'module_name': r.module_name,
-            'detailed_requirement': r.detailed_requirement,
-            'standard_custom': r.standard_custom,
-            'technical_details': r.technical_details,
-            'customer_benefit': r.customer_benefit,
+            'id':                     r.id,
+            'customer_name':          r.customer_name,
+            'domain':                 r.domain,
+            'sector':                 r.sector,
+            'module_name':            r.module_name,
+            'detailed_requirement':   r.detailed_requirement,
+            'standard_custom':        r.standard_custom,
+            'technical_details':      r.technical_details,
+            'customer_benefit':       r.customer_benefit,
             'attach_code_or_document': r.attach_code_or_document,
-            'attachment_filename': r.attachment_filename,
-            'Approver': r.Approver,
-            'Approval_status': r.Approval_status,
-            'Approval_date': r.Approval_date.isoformat() if r.Approval_date else None,
+            'attachment_filename':    r.attachment_filename,
+            'Approver':               r.Approver,
+            'Approval_status':        r.Approval_status,
+            'Approval_date':          r.Approval_date.isoformat() if r.Approval_date else None,
             'business_justification': r.business_justification,
-            'created_at': r.created_at.isoformat() if r.created_at else None,
-            'updated_at': r.updated_at.isoformat() if r.updated_at else None,
-            'rep_user_id': r.rep_user_id,
-            'user_id': r.user_id,
-            'username': r.username,
-            'irm': r.irm,
-            'srm': r.srm,
-            'buh': r.buh,
-            'bgh': r.bgh,
-            'download_approved': True if is_superadmin else (r.id in approved_ids),
+            'created_at':             r.created_at.isoformat() if r.created_at else None,
+            'updated_at':             r.updated_at.isoformat() if r.updated_at else None,
+            'rep_user_id':            r.rep_user_id,
+            'user_id':                r.user_id,
+            'username':               r.username,
+            'irm':                    r.irm,
+            'srm':                    r.srm,
+            'buh':                    r.buh,
+            'bgh':                    r.bgh,
+            'download_approved':      True if is_superadmin else (r.id in approved_ids),
         }
         for r in results
     ]
 
-
-def get_cached_data(cache_key):
-    """
-    Safely get data from Redis cache with error handling
-    Compatible with Flask-Caching
-    """
-    try:
-        cached = redis.get(cache_key)
-        if cached:
-            # Flask-Caching may return data as-is (already deserialized)
-            # or as string depending on configuration
-            if isinstance(cached, (dict, list)):
-                return cached
-            if isinstance(cached, str):
-                try:
-                    return json.loads(cached)
-                except (json.JSONDecodeError, ValueError):
-                    return cached
-            return cached
-    except Exception as e:
-        current_app.logger.warning(f"Redis GET error for key {cache_key}: {str(e)}")
-    return None
-
-
-def set_cached_data(cache_key, data, timeout=300):
-    """
-    Safely set data to Redis cache with error handling
-    Compatible with Flask-Caching
-    Flask-Caching signature: cache.set(key, value, timeout=timeout)
-    """
-    try:
-        # Flask-Caching handles serialization automatically
-        redis.set(cache_key, data, timeout=timeout)
-    except Exception as e:
-        current_app.logger.warning(f"Redis SET error for key {cache_key}: {str(e)}")
-
-
-def delete_cache_keys(*keys):
-    """
-    Safely delete multiple cache keys with error handling
-    Compatible with Flask-Caching
-    """
-    try:
-        for key in keys:
-            redis.delete(key)
-    except Exception as e:
-        current_app.logger.warning(f"Redis DELETE error: {str(e)}")
-
-
-def clear_all_caches():
-    """
-    Clear all repository-related caches
-    """
-    cache_keys = [
-        'allreporecords_Superadmin',
-        'allreporecords_manager',
-        'allreporecords_user',
-        'repo_by_module',
-        'repo_by_domain',
-        'top_users_solutions',
-        'counts_Superadmin',
-        'counts_manager',
-        'counts_user',
-        'all_modules',
-        'all_domains',
-        'all_sectors',
-        'all_logs',
-        'download_log_records',
-        'view_log_records',
-        'log_records'
-    ]
-    delete_cache_keys(*cache_keys)
 
 
 class KNR_Requirements(Resource):
@@ -191,7 +117,7 @@ class KNR_Requirements(Resource):
                     'buh': r.buh,
                     'bgh': r.bgh,
                     'username': r.username,
-                    'created_at': r.created_at.isoformat() if r.created_at else None,
+                    'created_at': r.created_at,
                     'download_approved': True
                 })
             return jsonify(result)
@@ -206,7 +132,7 @@ class KNR_Requirements(Resource):
                     requested_by=checkuser.id,
                     status='Approved'
                 ).first() is not None
-
+            
                 result.append({
                     'id': r.id,
                     'customer_name': r.customer_name,
@@ -226,8 +152,8 @@ class KNR_Requirements(Resource):
                     'buh': r.buh,
                     'bgh': r.bgh,
                     'username': r.username,
-                    'created_at': r.created_at.isoformat() if r.created_at else None,
-                    'download_approved': approved_req
+                    'created_at': r.created_at,
+                    'download_approved': approved_req  
                 })
             return jsonify(result)
 
@@ -261,7 +187,7 @@ class KNR_Requirements(Resource):
                     'buh': r.buh,
                     'bgh': r.bgh,
                     'username': r.username,
-                    'created_at': r.created_at.isoformat() if r.created_at else None,
+                    'created_at': r.created_at,
                     'download_approved': approved_req
                 })
             return jsonify(result)
@@ -269,7 +195,8 @@ class KNR_Requirements(Resource):
         else:
             return jsonify("Not Authorized"), 401
 
-    # ─── NEW: table-search endpoint ──────────────────────────────────────────────
+
+    # â”€â”€â”€ NEW: table-search endpoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     @rlp.route('/table-search', methods=['GET'])
     @jwt_required()
     def table_search():
@@ -280,8 +207,8 @@ class KNR_Requirements(Resource):
             return jsonify({'error': 'User not found'}), 401
 
         query_text = (request.args.get('query') or '').strip()
-        page = request.args.get('page', 1, type=int)
-        per_page = 10
+        page       = request.args.get('page', 1, type=int)
+        per_page   = 10
 
         if not query_text:
             return jsonify({'error': 'query is required'}), 400
@@ -302,15 +229,16 @@ class KNR_Requirements(Resource):
             )
         )
 
-        total = base_query.count()
-        paginated = base_query.paginate(page=page, per_page=per_page, error_out=False)
+        total     = base_query.count()
+        paginated = base_query.paginate(page=page, per_page=per_page)
 
         return jsonify({
             'items': _serialize_with_access(paginated.items, user),
             'total': total,
-            'page': page,
+            'page':  page,
         }), 200
-    # ─────────────────────────────────────────────────────────────────────────────
+    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
 
     @rlp.route('/getapprovalrepos', methods=['GET'])
     @jwt_required()
@@ -318,44 +246,42 @@ class KNR_Requirements(Resource):
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
         if check_user is not None and check_user.type == 'Superadmin':
-
+            
             get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').all()
             result = knrs.dump(get_repos)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
-
-            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval', Approver=check_user.name).all()
+            
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',Approver=check_user.name).all()
             result = knrs.dump(get_repos)
             return jsonify(result)
         if check_user is not None and check_user.type == 'user':
-
-            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval', Approver=check_user.name).all()
+            
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',Approver=check_user.name).all()
             result = knrs.dump(get_repos)
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
-
+    
     @rlp.route('/getapprovalreposrecords', methods=['GET'])
     @jwt_required()
     def getapprovalreposrecords():
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
-
-        cache_key = f'approvalreposrecords_{check_user.id}'
-        cached = get_cached_data(cache_key)
-        if cached:
-            return jsonify(cached)
-
         if check_user is not None and check_user.type == 'Superadmin':
             get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').all()
-        elif check_user is not None and check_user.type == 'manager':
-            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval', Approver=check_user.name).all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',Approver=check_user.name).all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
 
-        result = knrs.dump(get_repos)
-        set_cached_data(cache_key, result, timeout=120)
-        return jsonify(result)
+
+    
 
     @rlp.route('/createrepo', methods=['POST'])
     @jwt_required()
@@ -366,7 +292,7 @@ class KNR_Requirements(Resource):
 
             data = request.json
             required_fields = ['customer_name', 'domain', 'sector', 'module_name', 'detailed_requirement',
-                               'standard_custom', 'technical_details', 'customer_benefit']
+                            'standard_custom', 'technical_details', 'customer_benefit']
             missing_fields = [field for field in required_fields if field not in data or not data[field]]
             if missing_fields:
                 return jsonify({'error': 'Missing required fields', 'fields': missing_fields}), 400
@@ -394,15 +320,8 @@ class KNR_Requirements(Resource):
 
             db.session.add(new_repo)
             db.session.commit()
-            
-            # Clear all affected caches
-            clear_all_caches()
 
-            return jsonify({
-                'message': 'Repository created and approval email sent to IRM successfully',
-                'id': new_repo.id,
-                'repository': data
-            }), 201
+            return jsonify({'message': 'Repository created and approval email sent to IRM successfully','id': new_repo.id, 'repository': data}), 201
         else:
             return jsonify({'error': 'Not Authorised'}), 400
 
@@ -411,16 +330,17 @@ class KNR_Requirements(Resource):
     def getallreporecords():
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
-
-        cache_key = f'allreporecords_{check_user.type}'
-        cached = get_cached_data(cache_key)
-        if cached:
-            return jsonify(cached)
-
-        if check_user is not None and check_user.type in ('Superadmin', 'manager', 'user'):
+        if check_user is not None and check_user.type == 'Superadmin':
             get_repos = KNR.query.filter_by(Approval_status='Approved').all()
             result = knrs.dump(get_repos)
-            set_cached_data(cache_key, result, timeout=300)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            get_repos = KNR.query.filter_by(Approval_status='Approved').all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        elif check_user is not None and check_user.type == 'user':
+            get_repos = KNR.query.filter_by(Approval_status='Approved').all()
+            result = knrs.dump(get_repos)
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
@@ -482,16 +402,15 @@ class KNR_Requirements(Resource):
         ]
 
         valid_domains = [
-            'Technology', 'Healthcare', 'Finance', 'Education', 'Manufacturing', 'Energy', 'Retail',
-            'Agriculture', 'Transport', 'Media & Entertainment', 'Government & Public Sector', 'Telecommunications',
-            'Real Estate', 'Hospitality', 'Legal', 'Environmental Services', 'Construction',
-            'Fashion', 'Sports', 'Food & Beverage', 'Aerospace', 'Chemicals', 'Logistics & Supply Chain',
-            'Non-Profit & NGOs', 'Cybersecurity', 'Human Resources', 'Art & Culture', 'Mining & Metals',
-            'Electronics',
-            'Insurance', 'Publishing', 'Consulting', 'Transportation Services', 'Marine', 'Luxury',
-            'Automation & Robotics', 'Biotechnology', 'Tourism', 'Gaming', 'Advertising & Marketing',
-            'Security Services', 'Transportation Infrastructure', 'Pharmaceuticals', 'Veterinary',
-            'Renewables', 'Cloud Computing', 'Artificial Intelligence', 'Blockchain', 'Space Industry'
+        'Technology', 'Healthcare', 'Finance', 'Education', 'Manufacturing', 'Energy', 'Retail',
+        'Agriculture', 'Transport', 'Media & Entertainment', 'Government & Public Sector', 'Telecommunications',
+        'Real Estate', 'Hospitality', 'Legal', 'Environmental Services', 'Construction',
+        'Fashion', 'Sports', 'Food & Beverage', 'Aerospace', 'Chemicals', 'Logistics & Supply Chain',
+        'Non-Profit & NGOs', 'Cybersecurity', 'Human Resources', 'Art & Culture', 'Mining & Metals', 'Electronics',
+        'Insurance', 'Publishing', 'Consulting', 'Transportation Services', 'Marine', 'Luxury',
+        'Automation & Robotics', 'Biotechnology', 'Tourism', 'Gaming', 'Advertising & Marketing',
+        'Security Services', 'Transportation Infrastructure', 'Pharmaceuticals', 'Veterinary',
+        'Renewables', 'Cloud Computing', 'Artificial Intelligence', 'Blockchain', 'Space Industry'
         ]
 
         valid_sectors = [
@@ -507,27 +426,25 @@ class KNR_Requirements(Resource):
             'Corporate Law', 'Intellectual Property', 'Compliance', 'Waste Management', 'Recycling',
             'Water Treatment', 'Sustainability Consulting', 'Civil Engineering', 'Urban Development',
             'Smart Infrastructure', 'Housing Projects', 'Apparel', 'Footwear', 'Accessories',
-            'Luxury Brands', 'Professional Teams', 'Sportswear', 'Events Management', 'Fitness', 'Restaurants',
-            'Packaged Foods', 'Beverages', 'Nutrition', 'Defense Aviation', 'Commercial Airlines',
-            'Space Exploration',
+            'Luxury Brands', 'Professional Teams', 'Sportswear', 'Events Management', 'Fitness','Restaurants'
+            'Packaged Foods', 'Beverages', 'Nutrition','Defense Aviation', 'Commercial Airlines', 'Space Exploration',
             'Drones', 'Industrial Chemicals', 'Petrochemicals', 'Agrochemicals', 'Specialty Chemicals',
             'Warehousing', 'Distribution', 'Freight Forwarding', 'Cold Chain', 'Charities',
             'Foundations', 'Social Work', 'Community Development', 'Network Security', 'Data Protection',
             'Cloud Security', 'Risk Management', 'Recruitment', 'Training', 'Payroll', 'Employee Engagement',
             'Museums', 'Performing Arts', 'Heritage Conservation', 'Design', 'Iron & Steel',
-            'Precious Metals', 'Rare Earths', 'Industrial Minerals', 'Consumer Electronics', 'Semiconductors',
-            'Wearables',
+            'Precious Metals', 'Rare Earths', 'Industrial Minerals','Consumer Electronics', 'Semiconductors', 'Wearables',
             'Smart Devices', 'Life Insurance', 'Health Insurance', 'Property Insurance', 'Reinsurance',
             'Books', 'Magazines', 'Digital Media', 'Academic Journals', 'Management Consulting',
             'IT Consulting', 'Strategy', 'Operations', 'Ride-Sharing', 'Public Transit',
-            'Courier Services', 'Fleet Management', 'Shipping', 'Fishing', 'Ports', 'Marine Engineering',
+            'Courier Services', 'Fleet Management','Shipping', 'Fishing', 'Ports', 'Marine Engineering',
             'Jewelry', 'High-End Fashion', 'Luxury Cars', 'Exclusive Travel', 'Industrial Robots',
             'Service Robots', 'AI Robotics', 'Automation Systems', 'Genomics', 'Stem Cell Research',
             'Bioinformatics', 'Medical Research', 'Adventure Tourism', 'Eco-Tourism',
             'Cultural Tourism', 'Cruises', 'Esports', 'Mobile Games', 'Console Games',
             'VR/AR Gaming', 'Digital Marketing', 'Branding', 'Market Research', 'Public Relations',
             'Private Security', 'Surveillance', 'Risk Assessment', 'Emergency Response',
-            'Highways', 'Railways', 'Airports', 'Ports', 'Drug Development', 'Generic Drugs', 'Clinical Trials',
+            'Highways','Railways', 'Airports','Ports', 'Drug Development', 'Generic Drugs', 'Clinical Trials',
             'Distribution', 'Animal Healthcare', 'Pet Products', 'Livestock Services', 'Research',
             'Solar', 'Wind', 'Hydropower', 'Geothermal', 'SaaS', 'PaaS', 'IaaS', 'Hybrid Cloud',
             'Machine Learning', 'Natural Language Processing', 'Computer Vision', 'Robotics',
@@ -547,11 +464,11 @@ class KNR_Requirements(Resource):
 
             validation_errors = []
             if domain_val and not is_valid_value(domain_val, valid_domains):
-                validation_errors.append(f"Invalid Domain: '{domain_val}' (Row {idx + 2})")
+                validation_errors.append(f"Invalid Domain: '{domain_val}' (Row {idx+2})")
             if sector_val and not is_valid_value(sector_val, valid_sectors):
-                validation_errors.append(f"Invalid Sector: '{sector_val}' (Row {idx + 2})")
+                validation_errors.append(f"Invalid Sector: '{sector_val}' (Row {idx+2})")
             if module_val and not is_valid_value(module_val, module_options):
-                validation_errors.append(f"Invalid Module: '{module_val}' (Row {idx + 2})")
+                validation_errors.append(f"Invalid Module: '{module_val}' (Row {idx+2})")
 
             if validation_errors:
                 invalid_rows.extend(validation_errors)
@@ -563,8 +480,7 @@ class KNR_Requirements(Resource):
                     module_name=row.get('Module Name', ''),
                     detailed_requirement=row.get('Detailed requirement', ''),
                     standard_custom=row.get('Standard/Custom', ''),
-                    technical_details=row.get(
-                        'Technical details(Z object name or Process developed/configured)', ''),
+                    technical_details=row.get('Technical details(Z object name or Process developed/configured)', ''),
                     customer_benefit=row.get('Customer benefit', ''),
                     attach_code_or_document='UPLOADED',
                     username=check_user.name,
@@ -592,11 +508,8 @@ class KNR_Requirements(Resource):
 
         db.session.add_all(records)
         db.session.commit()
-        
-        # Clear all affected caches
-        clear_all_caches()
-        
         return jsonify({'message': f"{len(records)} records inserted successfully"}), 200
+
 
     @rlp.route('/repoapproval/<int:id>', methods=['PUT'])
     @jwt_required()
@@ -609,15 +522,11 @@ class KNR_Requirements(Resource):
             check_repo.Approval_status = "Approved"
             check_repo.Approval_date = datetime.utcnow().date()
             db.session.commit()
-            
-            # Clear all affected caches
-            clear_all_caches()
-            
             return jsonify("Status of the Repo Changed to Approved and user notified"), 200
 
         else:
             return jsonify("Repo Not Found"), 404
-
+    
     @rlp.route('/reporejection/<int:id>', methods=['PUT'])
     @jwt_required()
     def approvalreject_repo(id):
@@ -630,10 +539,6 @@ class KNR_Requirements(Resource):
             check_repo.Approver = check_user.name
             check_repo.Approval_date = datetime.utcnow().date()
             db.session.commit()
-            
-            # Clear all affected caches
-            clear_all_caches()
-            
             return jsonify("Status of the Repo Changed to Rejected and user notified"), 200
 
         else:
@@ -670,27 +575,32 @@ class KNR_Requirements(Resource):
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
 
-        if check_user is not None and check_user.type in ('Superadmin', 'user', 'manager'):
-            cache_key = f'counts_{check_user.type}'
-            cached = get_cached_data(cache_key)
-            if cached:
-                return jsonify(cached)
-
+        if check_user is not None and check_user.type == 'Superadmin':
             total_repos = KNR.query.count()
             approved_repos = KNR.query.filter_by(Approval_status='Approved').count()
             unapproved_repos = KNR.query.filter_by(Approval_status='Rejected').count()
             sent_for_approval_repos = KNR.query.filter_by(Approval_status='Sent for Approval').count()
-
-            result = {
-                "all_repos_count": total_repos,
-                "approved_repos_count": approved_repos,
-                "unapproved_repos_count": unapproved_repos,
-                "sentforapproval_count": sent_for_approval_repos
-            }
-            set_cached_data(cache_key, result, timeout=120)
-            return jsonify(result), 200
+            
+        elif check_user is not None and check_user.type == 'user':
+            total_repos = KNR.query.count()
+            approved_repos = KNR.query.filter_by(Approval_status='Approved').count()
+            unapproved_repos = KNR.query.filter_by(Approval_status='Rejected').count()
+            sent_for_approval_repos = KNR.query.filter_by(Approval_status='Sent for Approval').count()
+        elif check_user is not None and check_user.type == 'manager':
+            total_repos = KNR.query.count()
+            approved_repos = KNR.query.filter_by(Approval_status='Approved').count()
+            unapproved_repos = KNR.query.filter_by(Approval_status='Rejected').count()
+            sent_for_approval_repos = KNR.query.filter_by(Approval_status='Sent for Approval').count()
         else:
             return jsonify({"msg": "Unauthorized"}), 401
+
+        return jsonify({
+            "all_repos_count": total_repos,
+            "approved_repos_count": approved_repos,
+            "unapproved_repos_count": unapproved_repos,
+            "sentforapproval_count": sent_for_approval_repos
+        }), 200
+
 
     @rlp.route('/download-file/<int:id>', methods=['GET'])
     @jwt_required()
@@ -730,7 +640,7 @@ class KNR_Requirements(Resource):
             mimetype=mime_type,
             headers={'Content-Disposition': f'attachment; filename="{filename}"'}
         )
-
+    
     @rlp.route('/deleterepo/<int:id>', methods=['DELETE'])
     @jwt_required()
     def delete_repo(id):
@@ -743,44 +653,40 @@ class KNR_Requirements(Resource):
             if check_repo is not None:
                 db.session.delete(check_repo)
                 db.session.commit()
-                
-                # Clear all affected caches
-                clear_all_caches()
-                
                 return jsonify("Repo Deleted")
             else:
                 return jsonify("Repo Not Found")
         else:
             return jsonify("User Not Authorized")
 
+
     @rlp.route('upload_ref/<int:id>', methods=['POST'])
     @jwt_required()
     def upload_ref(id):
+            
+            check_repo = KNR.query.filter_by(id=id).first()
+            if check_repo is not None:
 
-        check_repo = KNR.query.filter_by(id=id).first()
-        if check_repo is not None:
+                file = request.files['file']
+                filename = file.filename
 
-            file = request.files['file']
-            filename = file.filename
+                allowed_formats = ['.doc', '.docx', '.xlsx', '.csv', '.pdf', '.png', '.jpg']
+                file_format = '.'+ filename.rsplit('.', 1)[1]
+                                    
+                if file_format in allowed_formats:
 
-            allowed_formats = ['.doc', '.docx', '.xlsx', '.csv', '.pdf', '.png', '.jpg']
-            file_format = '.' + filename.rsplit('.', 1)[1]
+                    filename = secure_filename(f"{check_repo.customer_name}_{check_repo.module_name}_{check_repo.domain}.{file.filename.rsplit('.', 1)[1]}")
+                    check_repo.attachment_filename= filename
+                    check_repo.attachment_data = file.read()
+                    check_repo.attach_code_or_document = 'ATTACHED'
+                    
+                    db.session.commit()
+                    return jsonify({'success': 'File uploaded successfully'})
 
-            if file_format in allowed_formats:
-
-                filename = secure_filename(
-                    f"{check_repo.customer_name}_{check_repo.module_name}_{check_repo.domain}.{file.filename.rsplit('.', 1)[1]}")
-                check_repo.attachment_filename = filename
-                check_repo.attachment_data = file.read()
-                check_repo.attach_code_or_document = 'ATTACHED'
-
-                db.session.commit()
-                return jsonify({'success': 'File uploaded successfully'})
-
+                else:
+                    return jsonify({'message':'File Error uploading'}),400
             else:
-                return jsonify({'message': 'File Error uploading'}), 400
-        else:
-            return jsonify({'message': 'Repository Not Found'}),
+                return jsonify({'message':'Repository Not Found'}),
 
     @rlp.route('/refdownload/<int:id>')
     @jwt_required()
@@ -810,8 +716,6 @@ class KNR_Requirements(Resource):
         )
         db.session.add(log)
         db.session.commit()
-        
-        delete_cache_keys('download_log_records', 'view_log_records')
 
         filename = check_file.attachment_filename or f"repository_{check_file.id}"
         filedata = check_file.attachment_data
@@ -827,11 +731,12 @@ class KNR_Requirements(Resource):
             as_attachment=True,
         )
 
+
     @rlp.route('/refview/<int:id>', methods=['GET'])
     @jwt_required()
     def refview(id):
         identity = get_jwt_identity()
-        user = User.query.filter_by(yash_id=identity).first()
+        user     = User.query.filter_by(yash_id=identity).first()
 
         if user is None:
             return jsonify({'error': 'User not found'}), 401
@@ -844,12 +749,12 @@ class KNR_Requirements(Resource):
         if not check_file.attachment_data:
             return jsonify({'error': 'No attachment found for this repository'}), 404
 
-        # ✅ NO approval gate — any authenticated user may view
+        # âœ… NO approval gate â€” any authenticated user may view
 
         filename = check_file.attachment_filename or f'repository_{id}'
         filedata = check_file.attachment_data
 
-        # ── MIME detection ──────────────────────────────────────────────────────
+        # â”€â”€ MIME detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         mimetype, _ = mimetypes.guess_type(filename)
 
         if mimetype is None:
@@ -867,57 +772,55 @@ class KNR_Requirements(Resource):
                     'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                     'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                     'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-                    'zip': 'application/zip',
+                    'zip' : 'application/zip',
                 }
                 mimetype = mime_map.get(ext, 'application/octet-stream')
             else:
                 mimetype = 'application/octet-stream'
 
-        # ── Audit log ───────────────────────────────────────────────────────────
+        # â”€â”€ Audit log â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         ip_address = request.headers.get('X-Forwarded-For', request.remote_addr)
         user_agent = request.headers.get('User-Agent')
 
         log = ViewLog(
-            user_id=user.id,
-            yash_id=user.yash_id,
-            username=user.name,
-            file_id=check_file.id,
-            filename=filename,
-            timestamp=datetime.utcnow(),
-            ip_address=ip_address,
-            user_agent=user_agent,
+            user_id   = user.id,
+            yash_id   = user.yash_id,
+            username  = user.name,
+            file_id   = check_file.id,
+            filename  = filename,
+            timestamp = datetime.utcnow(),
+            ip_address= ip_address,
+            user_agent= user_agent,
         )
         db.session.add(log)
         db.session.commit()
-        
-        delete_cache_keys('download_log_records', 'view_log_records')
 
-        # ── Build response ──────────────────────────────────────────────────────
+        # â”€â”€ Build response â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         response = send_file(
             BytesIO(filedata),
             mimetype=mimetype,
             download_name=filename,
-            as_attachment=False,  # inline — never triggers Save dialog
+            as_attachment=False,        # inline â€” never triggers Save dialog
         )
 
         # Force inline display
         response.headers['Content-Disposition'] = f'inline; filename="{filename}"'
 
-        # ── Security headers (prevent browser saving / caching to disk) ─────────
+        # â”€â”€ Security headers (prevent browser saving / caching to disk) â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         # Tells the browser: do NOT cache this response anywhere on disk
-        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
-        response.headers['Pragma'] = 'no-cache'
-        response.headers['Expires'] = '0'
+        response.headers['Cache-Control']       = 'no-store, no-cache, must-revalidate, private'
+        response.headers['Pragma']              = 'no-cache'
+        response.headers['Expires']             = '0'
 
         # Prevents MIME-type sniffing (browser must use the declared mime type)
         response.headers['X-Content-Type-Options'] = 'nosniff'
 
         # Prevents embedding in external iframes (only our own origin can embed)
-        response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+        response.headers['X-Frame-Options']    = 'SAMEORIGIN'
 
-        # Referrer policy — don't leak the URL when navigating away
-        response.headers['Referrer-Policy'] = 'no-referrer'
+        # Referrer policy â€” don't leak the URL when navigating away
+        response.headers['Referrer-Policy']    = 'no-referrer'
 
         # CSP for PDF/image responses served directly:
         # Disallows scripts that could exfiltrate the data
@@ -930,6 +833,7 @@ class KNR_Requirements(Resource):
 
         return response
 
+
     @rlp.route('/repodatabymodule', methods=['GET'])
     @jwt_required()
     def data_by_module():
@@ -939,11 +843,21 @@ class KNR_Requirements(Resource):
         if current_user is None:
             return jsonify({"msg": "Unauthorized"}), 401
 
-        cached = get_cached_data('repo_by_module')
-        if cached:
-            return jsonify(cached)
-
-        if check_user.type in ('Superadmin', 'manager', 'user'):
+        if check_user.type == 'Superadmin':
+            data = (
+                db.session.query(KNR.module_name, func.count(KNR.id))
+                .filter(KNR.Approval_status == 'Approved')
+                .group_by(KNR.module_name)
+                .all()
+            )
+        elif check_user.type == 'manager':
+            data = (
+                db.session.query(KNR.module_name, func.count(KNR.id))
+                .filter(KNR.Approval_status == 'Approved')
+                .group_by(KNR.module_name)
+                .all()
+            )
+        elif check_user.type == 'user':
             data = (
                 db.session.query(KNR.module_name, func.count(KNR.id))
                 .filter(KNR.Approval_status == 'Approved')
@@ -954,8 +868,8 @@ class KNR_Requirements(Resource):
             return jsonify({"msg": "Forbidden"}), 403
 
         result = {module: count for module, count in data}
-        set_cached_data('repo_by_module', result, timeout=300)
         return jsonify(result), 200
+
 
     @rlp.route('/repodatabydomain', methods=['GET'])
     @jwt_required()
@@ -965,42 +879,40 @@ class KNR_Requirements(Resource):
 
         if current_user is None:
             return jsonify({"msg": "Unauthorized"}), 401
-
-        cached = get_cached_data('repo_by_domain')
-        if cached:
-            return jsonify(cached)
-
-        if check_user.type in ('Superadmin', 'manager', 'user'):
-            data = db.session.query(KNR.domain, func.count(KNR.id)) \
-                .filter(KNR.Approval_status == 'Approved') \
-                .group_by(KNR.domain).all()
+        
+        if check_user.type == 'Superadmin':
+            data = db.session.query(KNR.domain, func.count(KNR.id)).filter(KNR.Approval_status == 'Approved').group_by(KNR.domain).all()
+        elif check_user.type == 'manager':
+            data = db.session.query(KNR.domain, func.count(KNR.id)).filter(KNR.Approval_status == 'Approved').group_by(KNR.domain).all()
+        elif check_user.type == 'user':
+            data = db.session.query(KNR.domain, func.count(KNR.id)).filter(KNR.Approval_status == 'Approved').group_by(KNR.domain).all()
         else:
             return jsonify({"msg": "Forbidden"}), 403
-
+        
         result = {domain: count for domain, count in data}
-        set_cached_data('repo_by_domain', result, timeout=300)
-        return jsonify(result), 200
+        return jsonify(result)
+
 
     @rlp.route('/search', methods=['GET'])
     @jwt_required()
     def search_repositories():
-        identity = get_jwt_identity()
-        user = User.query.filter_by(yash_id=identity).first()
+        identity   = get_jwt_identity()
+        user       = User.query.filter_by(yash_id=identity).first()
 
         if user is None:
             return jsonify({'error': 'User not found'}), 401
 
         selected_filter = (request.args.get('filter') or 'Any').strip()
-        query_text = (request.args.get('query') or '').strip()
+        query_text      = (request.args.get('query')  or '').strip()
 
         if not query_text:
             return jsonify({'error': 'query is required'}), 400
 
-        q = f'%{query_text}%'
+        q          = f'%{query_text}%'
         base_query = KNR.query.filter_by(Approval_status='Approved')
 
         if selected_filter in FILTER_COLUMN_MAP:
-            column = getattr(KNR, FILTER_COLUMN_MAP[selected_filter])
+            column  = getattr(KNR, FILTER_COLUMN_MAP[selected_filter])
             results = base_query.filter(column.ilike(q)).all()
         else:
             results = base_query.filter(
@@ -1020,6 +932,7 @@ class KNR_Requirements(Resource):
 
         return jsonify(_serialize_with_access(results, user)), 200
 
+
     @rlp.route('/getallapprovedrepos', methods=['GET'])
     @jwt_required()
     def getallapprovedrepos():
@@ -1027,48 +940,42 @@ class KNR_Requirements(Resource):
         check_user = User.query.filter_by(yash_id=current_user).first()
         if check_user is not None and check_user.type == 'Superadmin':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Approved').paginate(page=page, per_page=10,
-                                                                                  error_out=False)
+            get_repos = KNR.query.filter_by(Approval_status='Approved').paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Approved', user_id=check_user.id).paginate(page=page,
-                                                                                                         per_page=10,
-                                                                                                         error_out=False)
+            get_repos = KNR.query.filter_by(Approval_status='Approved', user_id=check_user.id).paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         elif check_user is not None and check_user.type == 'user':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Approved', user_id=check_user.id).paginate(page=page,
-                                                                                                         per_page=10,
-                                                                                                         error_out=False)
+            get_repos = KNR.query.filter_by(Approval_status='Approved',user_id=check_user.id).paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
-
+        
     @rlp.route('/getallapprovedreporecords', methods=['GET'])
     @jwt_required()
     def getallapprovedreporecords():
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
-
-        cache_key = f'approvedreporecords_{check_user.id}'
-        cached = get_cached_data(cache_key)
-        if cached:
-            return jsonify(cached)
-
         if check_user is not None and check_user.type == 'Superadmin':
             get_repos = KNR.query.filter_by(Approval_status='Approved').all()
-        elif check_user is not None and check_user.type in ('manager', 'user'):
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
             get_repos = KNR.query.filter_by(Approval_status='Approved', user_id=check_user.id).all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        elif check_user is not None and check_user.type == 'user':
+            get_repos = KNR.query.filter_by(Approval_status='Approved',user_id=check_user.id).all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
 
-        result = knrs.dump(get_repos)
-        set_cached_data(cache_key, result, timeout=300)
-        return jsonify(result)
 
     @rlp.route('/getallpendingrepos', methods=['GET'])
     @jwt_required()
@@ -1077,46 +984,42 @@ class KNR_Requirements(Resource):
         check_user = User.query.filter_by(yash_id=current_user).first()
         if check_user is not None and check_user.type == 'Superadmin':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').paginate(page=page, per_page=10,
-                                                                                           error_out=False)
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval', user_id=check_user.id).paginate(
-                page=page, per_page=10, error_out=False)
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval', user_id=check_user.id).paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         elif check_user is not None and check_user.type == 'user':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval', user_id=check_user.id).paginate(
-                page=page, per_page=10, error_out=False)
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',user_id=check_user.id).paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
-
+        
     @rlp.route('/getallpendingreporecords', methods=['GET'])
     @jwt_required()
     def getallpendingreporecords():
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
-
-        cache_key = f'pendingreporecords_{check_user.id}'
-        cached = get_cached_data(cache_key)
-        if cached:
-            return jsonify(cached)
-
         if check_user is not None and check_user.type == 'Superadmin':
             get_repos = KNR.query.filter_by(Approval_status='Sent for Approval').all()
-        elif check_user is not None and check_user.type in ('manager', 'user'):
-            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval', user_id=check_user.id).all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',user_id=check_user.id).all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        elif check_user is not None and check_user.type == 'user':
+            get_repos = KNR.query.filter_by(Approval_status='Sent for Approval',user_id=check_user.id).all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
 
-        result = knrs.dump(get_repos)
-        set_cached_data(cache_key, result, timeout=120)
-        return jsonify(result)
 
     @rlp.route('/getallunapprovedrepos', methods=['GET'])
     @jwt_required()
@@ -1125,27 +1028,22 @@ class KNR_Requirements(Resource):
         check_user = User.query.filter_by(yash_id=current_user).first()
         if check_user is not None and check_user.type == 'Superadmin':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Pending').paginate(page=page, per_page=10,
-                                                                                 error_out=False)
+            get_repos = KNR.query.filter_by(Approval_status='Pending').paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Pending', user_id=check_user.id).paginate(page=page,
-                                                                                                        per_page=10,
-                                                                                                        error_out=False)
+            get_repos = KNR.query.filter_by(Approval_status='Pending', user_id=check_user.id).paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         elif check_user is not None and check_user.type == 'user':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Pending', user_id=check_user.id).paginate(page=page,
-                                                                                                        per_page=10,
-                                                                                                        error_out=False)
+            get_repos = KNR.query.filter_by(Approval_status='Pending',user_id=check_user.id).paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
-
+        
     @rlp.route('/getallunapprovedreporecords', methods=['GET'])
     @jwt_required()
     def getallunapprovedreporecords():
@@ -1160,11 +1058,12 @@ class KNR_Requirements(Resource):
             result = knrs.dump(get_repos)
             return jsonify(result)
         elif check_user is not None and check_user.type == 'user':
-            get_repos = KNR.query.filter_by(Approval_status='Pending', user_id=check_user.id).all()
+            get_repos = KNR.query.filter_by(Approval_status='Pending',user_id=check_user.id).all()
             result = knrs.dump(get_repos)
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
+        
 
     @rlp.route('/getallrejectedrepos', methods=['GET'])
     @jwt_required()
@@ -1173,48 +1072,41 @@ class KNR_Requirements(Resource):
         check_user = User.query.filter_by(yash_id=current_user).first()
         if check_user is not None and check_user.type == 'Superadmin':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Rejected').paginate(page=page, per_page=10,
-                                                                                  error_out=False)
+            get_repos = KNR.query.filter_by(Approval_status='Rejected').paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Rejected', user_id=check_user.id).paginate(page=page,
-                                                                                                         per_page=10,
-                                                                                                         error_out=False)
+            get_repos = KNR.query.filter_by(Approval_status='Rejected', user_id=check_user.id).paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         elif check_user is not None and check_user.type == 'user':
             page = request.args.get('page', 1, type=int)
-            get_repos = KNR.query.filter_by(Approval_status='Rejected', user_id=check_user.id).paginate(page=page,
-                                                                                                         per_page=10,
-                                                                                                         error_out=False)
+            get_repos = KNR.query.filter_by(Approval_status='Rejected',user_id=check_user.id).paginate(page=page, per_page=10)
             result = knrs.dump(get_repos)
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
-
+        
     @rlp.route('/getallrejectedreporecords', methods=['GET'])
     @jwt_required()
     def getallrejectedreporecords():
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
-
-        cache_key = f'rejectedreporecords_{check_user.id}'
-        cached = get_cached_data(cache_key)
-        if cached:
-            return jsonify(cached)
-
         if check_user is not None and check_user.type == 'Superadmin':
             get_repos = KNR.query.filter_by(Approval_status='Rejected').all()
-        elif check_user is not None and check_user.type in ('manager', 'user'):
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
             get_repos = KNR.query.filter_by(Approval_status='Rejected', user_id=check_user.id).all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        elif check_user is not None and check_user.type == 'user':
+            get_repos = KNR.query.filter_by(Approval_status='Rejected',user_id=check_user.id).all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
-
-        result = knrs.dump(get_repos)
-        set_cached_data(cache_key, result, timeout=300)
-        return jsonify(result)
 
     @rlp.route('/getlogs', methods=['GET'])
     @jwt_required()
@@ -1223,35 +1115,33 @@ class KNR_Requirements(Resource):
         check_user = User.query.filter_by(yash_id=current_user).first()
         if check_user is not None and check_user.type == 'Superadmin':
             page = request.args.get('page', 1, type=int)
-            get_logs = LoginLog.query.paginate(page=page, per_page=10, error_out=False)
+            get_logs = LoginLog.query.paginate(page=page, per_page=10)
             result = login_logs.dump(get_logs)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
             page = request.args.get('page', 1, type=int)
-            get_logs = LoginLog.query.paginate(page=page, per_page=10, error_out=False)
+            get_logs = LoginLog.query.paginate(page=page, per_page=10)
             result = login_logs.dump(get_logs)
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
-
+        
     @rlp.route('/getlogrecords', methods=['GET'])
     @jwt_required()
     def getlogrecords():
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
-
-        if check_user is not None and check_user.type in ('Superadmin', 'manager'):
-            cached = get_cached_data('log_records')
-            if cached:
-                return jsonify(cached)
-
+        if check_user is not None and check_user.type == 'Superadmin':
             get_logs = LoginLog.query.all()
             result = login_logs.dump(get_logs)
-            set_cached_data('log_records', result, timeout=120)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            get_logs = LoginLog.query.all()
+            result = login_logs.dump(get_logs)
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
-
+        
     @rlp.route('/getdownloadlogs', methods=['GET'])
     @jwt_required()
     def getdownloadlogs():
@@ -1259,41 +1149,35 @@ class KNR_Requirements(Resource):
         check_user = User.query.filter_by(yash_id=current_user).first()
         if check_user is not None and check_user.type == 'Superadmin':
             page = request.args.get('page', 1, type=int)
-            get_logs = DownloadLog.query.paginate(page=page, per_page=10, error_out=False)
+            get_logs = DownloadLog.query.paginate(page=page, per_page=10)
             result = download_logs.dump(get_logs)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
             page = request.args.get('page', 1, type=int)
-            get_logs = DownloadLog.query.paginate(page=page, per_page=10, error_out=False)
+            get_logs = DownloadLog.query.paginate(page=page, per_page=10)
             result = download_logs.dump(get_logs)
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
-
+        
     @rlp.route('/getdownloadlogrecords', methods=['GET'])
     @jwt_required()
     def getdownloadlogrecords():
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
-
-        if check_user is not None and check_user.type in ('Superadmin', 'manager'):
-            cached = get_cached_data('download_log_records')
-            if cached:
-                return jsonify(cached)
-
+        if check_user is not None and check_user.type == 'Superadmin':
             get_logs = DownloadLog.query.all()
             result = download_logs.dump(get_logs)
-            set_cached_data('download_log_records', result, timeout=120)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            get_logs = DownloadLog.query.all()
+            result = download_logs.dump(get_logs)
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
-
+        
     @rlp.route('/top-users-solutions', methods=['GET'])
     def top_users_solutions():
-        cached = get_cached_data('top_users_solutions')
-        if cached:
-            return jsonify(cached)
-
         top_users = (
             db.session.query(
                 KNR.username,
@@ -1304,21 +1188,19 @@ class KNR_Requirements(Resource):
             .limit(10)
             .all()
         )
-
+        
         labels = [user.username for user in top_users]
         data = [int(user.solution_count or 0) for user in top_users]
-
-        result = {
+        
+        return jsonify({
             'labels': labels,
             'datasets': [{
                 'label': 'Solutions',
                 'data': data,
-                'backgroundColor': ['#3e95cd', '#8e5ea2', '#3cba9f', '#e8c3b9', '#c45850',
-                                    '#36a2eb', '#ff6384', '#ffcd56', '#4bc0c0', '#9966ff']
+                'backgroundColor': ['#3e95cd', '#8e5ea2', '#3cba9f', '#e8c3b9', '#c45850', 
+                                '#36a2eb', '#ff6384', '#ffcd56', '#4bc0c0', '#9966ff']
             }]
-        }
-        set_cached_data('top_users_solutions', result, timeout=300)
-        return jsonify(result)
+        })
 
     @rlp.route('/download-request/<int:id>', methods=['POST'])
     @jwt_required()
@@ -1350,6 +1232,7 @@ class KNR_Requirements(Resource):
 
         return jsonify({'message': 'Download request sent to Superadmin'}), 200
 
+
     @rlp.route('/download-requests', methods=['GET'])
     @jwt_required()
     def list_download_requests():
@@ -1374,6 +1257,7 @@ class KNR_Requirements(Resource):
             })
         return jsonify(result), 200
 
+
     @rlp.route('/download-requests/<int:id>/approve', methods=['POST'])
     @jwt_required()
     def approve_download_request(id):
@@ -1391,6 +1275,7 @@ class KNR_Requirements(Resource):
 
         return jsonify({'message': 'Request approved'}), 200
 
+
     @rlp.route('/download-requests/<int:id>/reject', methods=['POST'])
     @jwt_required()
     def reject_download_request(id):
@@ -1407,6 +1292,7 @@ class KNR_Requirements(Resource):
         db.session.commit()
 
         return jsonify({'message': 'Request rejected'}), 200
+
 
     @rlp.route('/repos/refdownload/<int:id>', methods=['GET'])
     @jwt_required()
@@ -1426,7 +1312,7 @@ class KNR_Requirements(Resource):
                 return jsonify({'message': 'Download not approved for this repository'}), 403
 
         if not knr.attachment_data:
-            return jsonify({'message': 'No file attached'}), 404
+            return jsonify({'message': 'No file attached'}, 404)
 
         ip_address = request.headers.get("X-Forwarded-For", request.remote_addr)
         user_agent = request.headers.get("User-Agent")
@@ -1457,6 +1343,7 @@ class KNR_Requirements(Resource):
             download_name=filename,
             as_attachment=True
         )
+
 
     @rlp.route("/delegate", methods=["POST"])
     @jwt_required()
@@ -1493,25 +1380,26 @@ class KNR_Requirements(Resource):
     @rlp.route('/download-all-logs', methods=['GET'])
     def download_all_logs():
         try:
-            cached = get_cached_data('all_logs')
-            if cached:
-                return jsonify(cached)
-
             all_logs = LoginLog.query.order_by(LoginLog.timestamp.desc()).all()
-            logs_data = [{
-                'id': log.id,
-                'yash_id': log.yash_id,
-                'ip_address': log.ip_address,
-                'user_agent': log.user_agent,
-                'success': log.success,
-                'message': log.message,
-                'timestamp': log.timestamp.isoformat() if log.timestamp else None
-            } for log in all_logs]
-
-            set_cached_data('all_logs', logs_data, timeout=120)
+            
+            logs_data = []
+            for log in all_logs:
+                logs_data.append({
+                    'id': log.id,
+                    'yash_id': log.yash_id,
+                    'ip_address': log.ip_address,
+                    'user_agent': log.user_agent,
+                    'success': log.success,
+                    'message': log.message,
+                    'timestamp': log.timestamp.isoformat() if log.timestamp else None
+                })
+            
             return jsonify(logs_data), 200
+            
         except Exception as e:
+            print(f"Error fetching all logs: {str(e)}")
             return jsonify({'error': 'Failed to fetch logs'}), 500
+
 
     @rlp.route('/manager-stats/monthly', methods=['GET'])
     @jwt_required()
@@ -1582,6 +1470,7 @@ class KNR_Requirements(Resource):
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
 
+
     @rlp.route('/manager-stats/years', methods=['GET'])
     @jwt_required()
     def get_available_years():
@@ -1609,30 +1498,31 @@ class KNR_Requirements(Resource):
     @jwt_required()
     def get_all_approved():
         identity = get_jwt_identity()
-        user = User.query.filter_by(yash_id=identity).first()
-
+        user     = User.query.filter_by(yash_id=identity).first()
+ 
         if user is None:
             return jsonify({'error': 'User not found'}), 401
-
-        page = request.args.get('page', 1, type=int)
+ 
+        page     = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 12, type=int)
-
+ 
         # Cap per_page to avoid abuse; 10000 triggers "all" mode for legacy callers
         if per_page >= 10000:
             results = KNR.query.filter_by(Approval_status='Approved').all()
             return jsonify(_serialize_with_access(results, user)), 200
-
+ 
         paginated = KNR.query.filter_by(Approval_status='Approved').paginate(
             page=page, per_page=per_page, error_out=False
         )
-
+ 
         return jsonify({
-            'items': _serialize_with_access(paginated.items, user),
-            'total': paginated.total,
-            'page': paginated.page,
+            'items':    _serialize_with_access(paginated.items, user),
+            'total':    paginated.total,
+            'page':     paginated.page,
             'has_more': paginated.has_next,
         }), 200
-
+ 
+    
     @rlp.route('/getalladdedrepos', methods=['GET'])
     @jwt_required()
     def getalladdedrepos():
@@ -1641,7 +1531,7 @@ class KNR_Requirements(Resource):
 
         if checkuser is not None and checkuser.type == 'Superadmin':
             page = request.args.get('page', 1, type=int)
-            getrepos = KNR.query.filter_by(user_id=checkuser.id).paginate(page=page, per_page=6, error_out=False)
+            getrepos = KNR.query.filter_by(user_id=checkuser.id).paginate(page=page, per_page=6)
             result = []
             for r in getrepos.items:
                 result.append({
@@ -1663,14 +1553,14 @@ class KNR_Requirements(Resource):
                     'buh': r.buh,
                     'bgh': r.bgh,
                     'username': r.username,
-                    'created_at': r.created_at.isoformat() if r.created_at else None,
+                    'created_at': r.created_at,
                     'download_approved': True
                 })
             return jsonify(result)
 
         if checkuser is not None and checkuser.type == 'manager':
             page = request.args.get('page', 1, type=int)
-            getrepos = KNR.query.filter_by(user_id=checkuser.id).paginate(page=page, per_page=6, error_out=False)
+            getrepos = KNR.query.filter_by(user_id=checkuser.id).paginate(page=page, per_page=6)
             result = []
             for r in getrepos.items:
                 approved_req = DownloadRequest.query.filter_by(
@@ -1678,7 +1568,7 @@ class KNR_Requirements(Resource):
                     requested_by=checkuser.id,
                     status='Approved'
                 ).first() is not None
-
+            
                 result.append({
                     'id': r.id,
                     'customer_name': r.customer_name,
@@ -1698,14 +1588,14 @@ class KNR_Requirements(Resource):
                     'buh': r.buh,
                     'bgh': r.bgh,
                     'username': r.username,
-                    'created_at': r.created_at.isoformat() if r.created_at else None,
-                    'download_approved': approved_req
+                    'created_at': r.created_at,
+                    'download_approved': approved_req  
                 })
             return jsonify(result)
 
         elif checkuser is not None and checkuser.type == 'user':
             page = request.args.get('page', 1, type=int)
-            getrepos = KNR.query.filter_by(user_id=checkuser.id).paginate(page=page, per_page=6, error_out=False)
+            getrepos = KNR.query.filter_by(user_id=checkuser.id).paginate(page=page, per_page=6)
             result = []
             for r in getrepos.items:
                 approved_req = DownloadRequest.query.filter_by(
@@ -1733,29 +1623,30 @@ class KNR_Requirements(Resource):
                     'buh': r.buh,
                     'bgh': r.bgh,
                     'username': r.username,
-                    'created_at': r.created_at.isoformat() if r.created_at else None,
+                    'created_at': r.created_at,
                     'download_approved': approved_req
                 })
             return jsonify(result)
 
         else:
             return jsonify("Not Authorized"), 401
-
+        
     @rlp.route('/getalladdedreporecords', methods=['GET'])
     @jwt_required()
     def getalladdedreporecords():
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
-
-        cache_key = f'addedreporecords_{check_user.id}'
-        cached = get_cached_data(cache_key)
-        if cached:
-            return jsonify(cached)
-
-        if check_user is not None and check_user.type in ('Superadmin', 'manager', 'user'):
+        if check_user is not None and check_user.type == 'Superadmin':
             get_repos = KNR.query.filter_by(user_id=check_user.id).all()
             result = knrs.dump(get_repos)
-            set_cached_data(cache_key, result, timeout=300)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            get_repos = KNR.query.filter_by(user_id=check_user.id).all()
+            result = knrs.dump(get_repos)
+            return jsonify(result)
+        elif check_user is not None and check_user.type == 'user':
+            get_repos = KNR.query.filter_by(user_id=check_user.id).all()
+            result = knrs.dump(get_repos)
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
@@ -1765,24 +1656,12 @@ class KNR_Requirements(Resource):
     def getrepos():
         current_user = get_jwt_identity()
         checkuser = User.query.filter_by(yash_id=current_user).first()
-        
         if checkuser is not None and checkuser.type == 'Superadmin':
-            # Check cache first
-            cache_key = 'all_repos_superadmin'
-            cached = get_cached_data(cache_key)
-            if cached:
-                return jsonify(cached)
-
-            # If no cache, query database
+            
             getrepos = KNR.query.all()
             result = knrs.dump(getrepos)
-            
-            # Store in cache for 5 minutes
-            set_cached_data(cache_key, result, timeout=300)
-            return jsonify(result)
-        
-        return jsonify("Not Authorized"), 401
-
+        return jsonify(result)
+    
     @rlp.route('/getviewlogs', methods=['GET'])
     @jwt_required()
     def getviewlogs():
@@ -1790,54 +1669,46 @@ class KNR_Requirements(Resource):
         check_user = User.query.filter_by(yash_id=current_user).first()
         if check_user is not None and check_user.type == 'Superadmin':
             page = request.args.get('page', 1, type=int)
-            get_logs = ViewLog.query.paginate(page=page, per_page=10, error_out=False)
+            get_logs = ViewLog.query.paginate(page=page, per_page=10)
             result = view_logs.dump(get_logs)
             return jsonify(result)
         if check_user is not None and check_user.type == 'manager':
             page = request.args.get('page', 1, type=int)
-            get_logs = ViewLog.query.paginate(page=page, per_page=10, error_out=False)
+            get_logs = ViewLog.query.paginate(page=page, per_page=10)
             result = view_logs.dump(get_logs)
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
-
+        
     @rlp.route('/getviewlogrecords', methods=['GET'])
     @jwt_required()
     def getviewlogrecords():
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
-
-        if check_user is not None and check_user.type in ('Superadmin', 'manager'):
-            cached = get_cached_data('view_log_records')
-            if cached:
-                return jsonify(cached)
-
+        if check_user is not None and check_user.type == 'Superadmin':
             get_logs = ViewLog.query.all()
             result = view_logs.dump(get_logs)
-            set_cached_data('view_log_records', result, timeout=120)
+            return jsonify(result)
+        if check_user is not None and check_user.type == 'manager':
+            get_logs = ViewLog.query.all()
+            result = view_logs.dump(get_logs)
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
-
+        
     @rlp.route('/getmodules', methods=['GET'])
     @jwt_required()
     def getmodules():
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
-
         if check_user is not None:
-            cached = get_cached_data('all_modules')
-            if cached:
-                return jsonify(cached)
-
             get_modules = Modules.query.all()
             result = modules.dump(get_modules)
-            set_cached_data('all_modules', result, timeout=600)
             return jsonify(result)
         else:
             return jsonify("Not Authorized"), 401
-
-    # POST  /addmodule  ── create a new module
+        
+    # POST  /addmodule  â”€â”€ create a new module
     @rlp.route('/addmodule', methods=['POST'])
     @jwt_required()
     def addmodule():
@@ -1851,7 +1722,7 @@ class KNR_Requirements(Resource):
             return jsonify({"error": "No data provided"}), 400
 
         module_name = data.get('module_name', '').strip()
-        key_name = data.get('key_name', '').strip()
+        key_name    = data.get('key_name', '').strip()
 
         if not module_name or not key_name:
             return jsonify({"error": "module_name and key_name are required"}), 400
@@ -1864,14 +1735,11 @@ class KNR_Requirements(Resource):
         new_module = Modules(module_name=module_name, key_name=key_name)
         db.session.add(new_module)
         db.session.commit()
-        
-        # Clear all affected caches
-        clear_all_caches()
-        
         result = module.dump(new_module)
         return jsonify(result), 201
 
-    # PUT  /editmodule/<id>  ── update an existing module
+
+    # PUT  /editmodule/<id>  â”€â”€ update an existing module
     @rlp.route('/editmodule/<int:id>', methods=['PUT'])
     @jwt_required()
     def editmodule(id):
@@ -1889,7 +1757,7 @@ class KNR_Requirements(Resource):
             return jsonify({"error": "No data provided"}), 400
 
         module_name = data.get('module_name', '').strip()
-        key_name = data.get('key_name', '').strip()
+        key_name    = data.get('key_name', '').strip()
 
         if not module_name or not key_name:
             return jsonify({"error": "module_name and key_name are required"}), 400
@@ -1901,16 +1769,13 @@ class KNR_Requirements(Resource):
                 return jsonify({"error": f"A module with key_name '{key_name}' already exists"}), 409
 
         get_module.module_name = module_name
-        get_module.key_name = key_name
+        get_module.key_name    = key_name
         db.session.commit()
-        
-        # Clear all affected caches
-        clear_all_caches()
-        
         result = module.dump(get_module)
         return jsonify(result), 200
 
-    # DELETE  /deletemodule/<id>  ── remove a module
+
+    # DELETE  /deletemodule/<id>  â”€â”€ remove a module
     @rlp.route('/deletemodule/<int:id>', methods=['DELETE'])
     @jwt_required()
     def deletemodule(id):
@@ -1923,40 +1788,38 @@ class KNR_Requirements(Resource):
         if get_module is None:
             return jsonify({"error": "Module not found"}), 404
 
-        module_name = get_module.module_name
         db.session.delete(get_module)
         db.session.commit()
-        
-        # Clear all affected caches
-        clear_all_caches()
 
-        return jsonify({"message": f"Module '{module_name}' deleted successfully"}), 200
-
+        return jsonify({"message": f"Module '{module.module_name}' deleted successfully"}), 200
+    
     @rlp.route('/domains', methods=['GET'])
     def get_all_domains():
         """Return all domains with their sectors (paginated optional)."""
-        page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 0, type=int)  # 0 = no pagination
+        page     = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 0, type=int)   # 0 = no pagination
 
         if per_page > 0:
             paginated = Domain.query.order_by(Domain.name).paginate(
                 page=page, per_page=per_page, error_out=False
             )
             return jsonify({
-                'domains': [d.to_dict() for d in paginated.items],
-                'total': paginated.total,
-                'page': paginated.page,
-                'per_page': paginated.per_page,
-                'total_pages': paginated.pages,
+                'domains':      [d.to_dict() for d in paginated.items],
+                'total':        paginated.total,
+                'page':         paginated.page,
+                'per_page':     paginated.per_page,
+                'total_pages':  paginated.pages,
             })
 
         domains = Domain.query.order_by(Domain.name).all()
         return jsonify([d.to_dict() for d in domains])
 
+
     @rlp.route('/domains/<int:domain_id>', methods=['GET'])
     def get_domain(domain_id):
         domain = Domain.query.get_or_404(domain_id)
         return jsonify(domain.to_dict())
+
 
     @rlp.route('/domains', methods=['POST'])
     def create_domain():
@@ -1978,16 +1841,13 @@ class KNR_Requirements(Resource):
                 db.session.add(Sector(name=s_name, domain=domain))
 
         db.session.commit()
-        
-        # Clear all affected caches
-        clear_all_caches()
-        
         return jsonify(domain.to_dict()), 201
+
 
     @rlp.route('/domains/<int:domain_id>', methods=['PUT'])
     def update_domain(domain_id):
         domain = Domain.query.get_or_404(domain_id)
-        data = request.get_json()
+        data   = request.get_json()
 
         if not data or not data.get('name', '').strip():
             return jsonify({'error': 'Domain name is required'}), 400
@@ -1997,30 +1857,23 @@ class KNR_Requirements(Resource):
         if conflict:
             return jsonify({'error': f'Domain "{new_name}" already exists'}), 409
 
-        domain.name = new_name
+        domain.name       = new_name
         domain.updated_at = datetime.utcnow()
         db.session.commit()
-        
-        # Clear all affected caches
-        clear_all_caches()
-        
         return jsonify(domain.to_dict())
+
 
     @rlp.route('/domains/<int:domain_id>', methods=['DELETE'])
     def delete_domain(domain_id):
         domain = Domain.query.get_or_404(domain_id)
-        domain_name = domain.name
         db.session.delete(domain)
         db.session.commit()
-        
-        # Clear all affected caches
-        clear_all_caches()
-        
-        return jsonify({'message': f'Domain "{domain_name}" deleted successfully'})
+        return jsonify({'message': f'Domain "{domain.name}" deleted successfully'})
 
-    # ════════════════════════════════════════════════════════════════════════════
+
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     #  SECTOR ENDPOINTS
-    # ════════════════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     @rlp.route('/domains/<int:domain_id>/sectors', methods=['GET'])
     def get_sectors_for_domain(domain_id):
@@ -2028,21 +1881,18 @@ class KNR_Requirements(Resource):
         sectors = Sector.query.filter_by(domain_id=domain_id).order_by(Sector.name).all()
         return jsonify([s.to_dict() for s in sectors])
 
+
     @rlp.route('/sectors', methods=['GET'])
     def get_all_sectors():
-        cached = get_cached_data('all_sectors')
-        if cached:
-            return jsonify(cached)
-
         sectors = Sector.query.order_by(Sector.name).all()
-        result = [s.to_dict() for s in sectors]
-        set_cached_data('all_sectors', result, timeout=600)
-        return jsonify(result)
+        return jsonify([s.to_dict() for s in sectors])
+
 
     @rlp.route('/sectors/<int:sector_id>', methods=['GET'])
     def get_sector(sector_id):
         sector = Sector.query.get_or_404(sector_id)
         return jsonify(sector.to_dict())
+
 
     @rlp.route('/domains/<int:domain_id>/sectors', methods=['POST'])
     def create_sector(domain_id):
@@ -2060,21 +1910,18 @@ class KNR_Requirements(Resource):
         sector = Sector(name=name, domain_id=domain_id)
         db.session.add(sector)
         db.session.commit()
-        
-        # Clear all affected caches
-        clear_all_caches()
-        
         return jsonify(sector.to_dict()), 201
+
 
     @rlp.route('/sectors/<int:sector_id>', methods=['PUT'])
     def update_sector(sector_id):
         sector = Sector.query.get_or_404(sector_id)
-        data = request.get_json()
+        data   = request.get_json()
 
         if not data or not data.get('name', '').strip():
             return jsonify({'error': 'Sector name is required'}), 400
 
-        new_name = data['name'].strip()
+        new_name  = data['name'].strip()
         domain_id = data.get('domain_id', sector.domain_id)
 
         conflict = Sector.query.filter(
@@ -2085,31 +1932,24 @@ class KNR_Requirements(Resource):
         if conflict:
             return jsonify({'error': f'Sector "{new_name}" already exists in this domain'}), 409
 
-        sector.name = new_name
-        sector.domain_id = domain_id
+        sector.name       = new_name
+        sector.domain_id  = domain_id
         sector.updated_at = datetime.utcnow()
         db.session.commit()
-        
-        # Clear all affected caches
-        clear_all_caches()
-        
         return jsonify(sector.to_dict())
+
 
     @rlp.route('/sectors/<int:sector_id>', methods=['DELETE'])
     def delete_sector(sector_id):
         sector = Sector.query.get_or_404(sector_id)
-        sector_name = sector.name
         db.session.delete(sector)
         db.session.commit()
-        
-        # Clear all affected caches
-        clear_all_caches()
-        
-        return jsonify({'message': f'Sector "{sector_name}" deleted successfully'})
+        return jsonify({'message': f'Sector "{sector.name}" deleted successfully'})
 
-    # ════════════════════════════════════════════════════════════════════════════
+
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     #  BULK OPERATIONS
-    # ════════════════════════════════════════════════════════════════════════════
+    # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     @rlp.route('/domains/<int:domain_id>/sectors/bulk', methods=['POST'])
     def bulk_create_sectors(domain_id):
