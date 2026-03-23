@@ -248,7 +248,7 @@ def send_repo_approval_email(irm_email, created_by, customer_name, domain,
 
     except Exception as e:
         current_app.logger.error(f"Failed to send approval request email to {irm_email}: {str(e)}")
-        raise e
+        return False
 
 
 # ─── Template 2 — Solution Approved (to creator) ────────────────────────────
@@ -340,7 +340,7 @@ def send_repo_approved_email(user_email, created_by, customer_name, module_name,
 
     except Exception as e:
         current_app.logger.error(f"Failed to send approved email to {user_email}: {str(e)}")
-        raise e
+        return False
 
 
 # ─── Template 3 — Solution Rejected (to creator) ────────────────────────────
@@ -445,7 +445,7 @@ def send_repo_rejected_email(user_email, created_by, customer_name, module_name,
 
     except Exception as e:
         current_app.logger.error(f"Failed to send rejection email to {user_email}: {str(e)}")
-        raise e
+        return False
     
 # ─── Template 4 — Download Request Approved ─────────────────────────────────
 
@@ -538,7 +538,7 @@ def send_download_approved_email(user_email, requested_by_name, module_name,
 
     except Exception as e:
         current_app.logger.error(f"Failed to send download approved email to {user_email}: {str(e)}")
-        raise e
+        return False
 
 
 # ─── Template 5 — Download Request Rejected ─────────────────────────────────
@@ -644,7 +644,7 @@ def send_download_rejected_email(user_email, requested_by_name, module_name,
 
     except Exception as e:
         current_app.logger.error(f"Failed to send download rejected email to {user_email}: {str(e)}")
-        raise e
+        return False
     
 # ─── Template 6 — Download Request Created (to Superadmin) ──────────────────
 
@@ -742,4 +742,4 @@ def send_download_request_email(superadmin_email, requested_by_name, user_email,
 
     except Exception as e:
         current_app.logger.error(f"Failed to send download request email to {superadmin_email}: {str(e)}")
-        raise e
+        return False
