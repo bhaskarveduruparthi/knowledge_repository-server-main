@@ -20,6 +20,8 @@ import numpy as np
 from openpyxl import load_workbook
 from io import BytesIO
 
+from services.email_service import send_download_approved_email, send_download_rejected_email, send_download_request_email, send_repo_approval_email, send_repo_approved_email, send_repo_rejected_email
+
 
 
 
@@ -321,7 +323,34 @@ class KNR_Requirements(Resource):
             db.session.add(new_repo)
             db.session.commit()
 
-            return jsonify({'message': 'Repository created and approval email sent to IRM successfully','id': new_repo.id, 'repository': data}), 201
+            # ── Email trigger ──────────────────────────────────────────────
+            try:
+                # Fetch IRM user to get their email
+                
+                irm_email = check_user.irm_email if check_user.irm_email else None
+
+                if irm_email:
+                    send_repo_approval_email(
+                        irm_email=irm_email,
+                        created_by=check_user.name,
+                        customer_name=data['customer_name'],
+                        domain=data['domain'],
+                        sector=data['sector'],
+                        module_name=data['module_name'],
+                        detailed_requirement=data['detailed_requirement'],
+                        standard_custom=data['standard_custom'],
+                        technical_details=data['technical_details'],
+                        customer_benefit=data['customer_benefit'],
+                        repo_id=new_repo.id,
+                        user_email=check_user.email
+                    )
+                else:
+                    current_app.logger.warning(f"IRM user '{check_user.irm}' not found — approval email skipped for repo {new_repo.id}")
+            except Exception as e:
+                current_app.logger.error(f"Approval request email failed for repo {new_repo.id}: {str(e)}")
+            # ──────────────────────────────────────────────────────────────
+
+            return jsonify({'message': 'Repository created and approval email sent to IRM successfully', 'id': new_repo.id, 'repository': data}), 201
         else:
             return jsonify({'error': 'Not Authorised'}), 400
 
@@ -522,6 +551,30 @@ class KNR_Requirements(Resource):
             check_repo.Approval_status = "Approved"
             check_repo.Approval_date = datetime.utcnow().date()
             db.session.commit()
+
+            # ── Email trigger ──────────────────────────────────────────────
+            try:
+                # Fetch the repo creator's email
+                repo_creator = User.query.filter_by(name=check_repo.username).first()
+                user_email = repo_creator.email if repo_creator else None
+
+                # IRM email = the approver who is currently logged in
+                irm_email = check_user.email if check_user else None
+
+                if user_email:
+                    send_repo_approved_email(
+                        user_email=user_email,
+                        created_by=check_repo.username,
+                        customer_name=check_repo.customer_name,
+                        module_name=check_repo.module_name,
+                        repo_id=check_repo.id,
+                        irm_email=irm_email
+                    )
+            except Exception as e:
+                # Log but don't fail the approval if email errors out
+                current_app.logger.error(f"Approval email failed for repo {id}: {str(e)}")
+            # ──────────────────────────────────────────────────────────────
+
             return jsonify("Status of the Repo Changed to Approved and user notified"), 200
 
         else:
@@ -534,11 +587,31 @@ class KNR_Requirements(Resource):
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
 
-        if check_repo is not None and check_user.type == 'Superadmin':
+        if check_repo is not None:
             check_repo.Approval_status = "Rejected"
             check_repo.Approver = check_user.name
             check_repo.Approval_date = datetime.utcnow().date()
             db.session.commit()
+
+            # ── Email trigger ──────────────────────────────────────────────
+            try:
+                repo_creator = User.query.filter_by(name=check_repo.username).first()
+                user_email = repo_creator.email if repo_creator else None
+                irm_email = check_user.email if check_user else None
+
+                if user_email:
+                    send_repo_rejected_email(
+                        user_email=user_email,
+                        created_by=check_repo.username,
+                        customer_name=check_repo.customer_name,
+                        module_name=check_repo.module_name,
+                        rejected_by=check_user.name,
+                        irm_email=irm_email
+                    )
+            except Exception as e:
+                current_app.logger.error(f"Rejection email failed for repo {id}: {str(e)}")
+            # ──────────────────────────────────────────────────────────────
+
             return jsonify("Status of the Repo Changed to Rejected and user notified"), 200
 
         else:
@@ -1209,7 +1282,7 @@ class KNR_Requirements(Resource):
         user = User.query.filter_by(yash_id=identity).first_or_404()
 
         data = request.get_json() or {}
-        justification = data.get('justification', '')
+        justification = data.get('justification', 'Requested for Download')
 
         knr = KNR.query.get_or_404(id)
 
@@ -1229,6 +1302,21 @@ class KNR_Requirements(Resource):
         )
         db.session.add(req)
         db.session.commit()
+
+        # ── Email trigger ──────────────────────────────────────────────
+        try:
+            send_download_request_email(
+                    superadmin_email='varma.pericharla@yash.com',
+                    requested_by_name=user.name,
+                    user_email=user.email,
+                    module_name=knr.module_name,
+                    customer_name=knr.customer_name,
+                    justification=justification,
+                    
+                )
+        except Exception as e:
+            current_app.logger.error(f"Download request email failed for req {req.id}: {str(e)}")
+        # ──────────────────────────────────────────────────────────────
 
         return jsonify({'message': 'Download request sent to Superadmin'}), 200
 
@@ -1273,6 +1361,22 @@ class KNR_Requirements(Resource):
         req.approved_at = datetime.utcnow()
         db.session.commit()
 
+        # ── Email trigger ──────────────────────────────────────────────
+        try:
+            requester_email = req.requester.email if req.requester else None
+            if requester_email:
+                send_download_approved_email(
+                    user_email=requester_email,
+                    requested_by_name=req.requested_by_name,
+                    module_name=req.knr.module_name,
+                    customer_name=req.knr.customer_name,
+                    approved_by_name=approver.name,
+                    justification=req.justification
+                )
+        except Exception as e:
+            current_app.logger.error(f"Download approve email failed for request {id}: {str(e)}")
+        # ──────────────────────────────────────────────────────────────
+
         return jsonify({'message': 'Request approved'}), 200
 
 
@@ -1290,6 +1394,22 @@ class KNR_Requirements(Resource):
         req.approved_by = approver.id
         req.approved_at = datetime.utcnow()
         db.session.commit()
+
+        # ── Email trigger ──────────────────────────────────────────────
+        try:
+            requester_email = req.requester.email if req.requester else None
+            if requester_email:
+                send_download_rejected_email(
+                    user_email=requester_email,
+                    requested_by_name=req.requested_by_name,
+                    module_name=req.knr.module_name,
+                    customer_name=req.knr.customer_name,
+                    rejected_by_name=approver.name,
+                    justification=req.justification
+                )
+        except Exception as e:
+            current_app.logger.error(f"Download reject email failed for request {id}: {str(e)}")
+        # ──────────────────────────────────────────────────────────────
 
         return jsonify({'message': 'Request rejected'}), 200
 
