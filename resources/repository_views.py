@@ -1251,27 +1251,55 @@ class KNR_Requirements(Resource):
         
     @rlp.route('/top-users-solutions', methods=['GET'])
     def top_users_solutions():
-        top_users = (
-            db.session.query(
-                KNR.username,
-                func.count(KNR.id).label('solution_count')
+        user_type = request.args.get('user_type')
+        period    = request.args.get('period')   # 'monthly', 'quarterly', 'yearly'
+
+        now = datetime.utcnow()
+
+        query = db.session.query(
+            KNR.username,
+            func.count(KNR.id).label('solution_count')
+        )
+
+        if user_type:
+            query = query.join(User, User.name == KNR.username).filter(User.type == user_type)
+
+        # ← add period filter
+        if period == 'monthly':
+            query = query.filter(
+                extract('year',  KNR.created_at) == now.year,
+                extract('month', KNR.created_at) == now.month
             )
+        elif period == 'quarterly':
+            current_quarter_start_month = ((now.month - 1) // 3) * 3 + 1
+            query = query.filter(
+                extract('year',  KNR.created_at) == now.year,
+                extract('month', KNR.created_at) >= current_quarter_start_month,
+                extract('month', KNR.created_at) <  current_quarter_start_month + 3
+            )
+        elif period == 'yearly':
+            query = query.filter(
+                extract('year', KNR.created_at) == now.year
+            )
+
+        top_users = (
+            query
             .group_by(KNR.username)
             .order_by(func.count(KNR.id).desc())
             .limit(10)
             .all()
         )
-        
-        labels = [user.username for user in top_users]
-        data = [int(user.solution_count or 0) for user in top_users]
-        
+
+        labels = [u.username for u in top_users]
+        data   = [int(u.solution_count or 0) for u in top_users]
+
         return jsonify({
             'labels': labels,
             'datasets': [{
                 'label': 'Solutions',
                 'data': data,
-                'backgroundColor': ['#3e95cd', '#8e5ea2', '#3cba9f', '#e8c3b9', '#c45850', 
-                                '#36a2eb', '#ff6384', '#ffcd56', '#4bc0c0', '#9966ff']
+                'backgroundColor': ['#3e95cd', '#8e5ea2', '#3cba9f', '#e8c3b9', '#c45850',
+                                    '#36a2eb', '#ff6384', '#ffcd56', '#4bc0c0', '#9966ff']
             }]
         })
 
