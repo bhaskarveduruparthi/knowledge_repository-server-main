@@ -35,6 +35,35 @@ FILTER_COLUMN_MAP = {
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'xlsx'}
 
+def apply_period_filter(query, model_field, period, from_date, to_date):
+    """Applies period or custom date range filter to a SQLAlchemy query."""
+    now = datetime.utcnow()
+
+    if from_date and to_date:
+        try:
+            f = datetime.strptime(from_date, '%Y-%m-%d')
+            t = datetime.strptime(to_date,   '%Y-%m-%d')
+            return query.filter(model_field >= f, model_field <= t)
+        except ValueError:
+            pass
+
+    if period == 'monthly':
+        return query.filter(
+            extract('year',  model_field) == now.year,
+            extract('month', model_field) == now.month
+        )
+    elif period == 'quarterly':
+        qstart = ((now.month - 1) // 3) * 3 + 1
+        return query.filter(
+            extract('year',  model_field) == now.year,
+            extract('month', model_field) >= qstart,
+            extract('month', model_field) <  qstart + 3
+        )
+    elif period == 'yearly':
+        return query.filter(extract('year', model_field) == now.year)
+
+    return query  # 'all' — no filter
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
@@ -646,32 +675,28 @@ class KNR_Requirements(Resource):
     @jwt_required()
     def get_all_counts():
         current_user = get_jwt_identity()
-        check_user = User.query.filter_by(yash_id=current_user).first()
+        check_user   = User.query.filter_by(yash_id=current_user).first()
 
-        if check_user is not None and check_user.type == 'Superadmin':
-            total_repos = KNR.query.count()
-            approved_repos = KNR.query.filter_by(Approval_status='Approved').count()
-            unapproved_repos = KNR.query.filter_by(Approval_status='Rejected').count()
-            sent_for_approval_repos = KNR.query.filter_by(Approval_status='Sent for Approval').count()
-            
-        elif check_user is not None and check_user.type == 'user':
-            total_repos = KNR.query.count()
-            approved_repos = KNR.query.filter_by(Approval_status='Approved').count()
-            unapproved_repos = KNR.query.filter_by(Approval_status='Rejected').count()
-            sent_for_approval_repos = KNR.query.filter_by(Approval_status='Sent for Approval').count()
-        elif check_user is not None and check_user.type == 'manager':
-            total_repos = KNR.query.count()
-            approved_repos = KNR.query.filter_by(Approval_status='Approved').count()
-            unapproved_repos = KNR.query.filter_by(Approval_status='Rejected').count()
-            sent_for_approval_repos = KNR.query.filter_by(Approval_status='Sent for Approval').count()
-        else:
+        if not check_user:
             return jsonify({"msg": "Unauthorized"}), 401
 
+        period    = request.args.get('period')
+        from_date = request.args.get('from')
+        to_date   = request.args.get('to')
+
+        base = KNR.query
+        base_filtered = apply_period_filter(base, KNR.created_at, period, from_date, to_date)
+
+        total_repos            = base_filtered.count()
+        approved_repos         = base_filtered.filter_by(Approval_status='Approved').count()
+        unapproved_repos       = base_filtered.filter_by(Approval_status='Rejected').count()
+        sent_for_approval_repos = base_filtered.filter_by(Approval_status='Sent for Approval').count()
+
         return jsonify({
-            "all_repos_count": total_repos,
-            "approved_repos_count": approved_repos,
+            "all_repos_count":        total_repos,
+            "approved_repos_count":   approved_repos,
             "unapproved_repos_count": unapproved_repos,
-            "sentforapproval_count": sent_for_approval_repos
+            "sentforapproval_count":  sent_for_approval_repos
         }), 200
 
 
@@ -911,59 +936,40 @@ class KNR_Requirements(Resource):
     @jwt_required()
     def data_by_module():
         current_user = get_jwt_identity()
-        check_user = User.query.filter_by(yash_id=current_user).first()
-
-        if current_user is None:
+        check_user   = User.query.filter_by(yash_id=current_user).first()
+        if not check_user:
             return jsonify({"msg": "Unauthorized"}), 401
 
-        if check_user.type == 'Superadmin':
-            data = (
-                db.session.query(KNR.module_name, func.count(KNR.id))
-                .filter(KNR.Approval_status == 'Approved')
-                .group_by(KNR.module_name)
-                .all()
-            )
-        elif check_user.type == 'manager':
-            data = (
-                db.session.query(KNR.module_name, func.count(KNR.id))
-                .filter(KNR.Approval_status == 'Approved')
-                .group_by(KNR.module_name)
-                .all()
-            )
-        elif check_user.type == 'user':
-            data = (
-                db.session.query(KNR.module_name, func.count(KNR.id))
-                .filter(KNR.Approval_status == 'Approved')
-                .group_by(KNR.module_name)
-                .all()
-            )
-        else:
-            return jsonify({"msg": "Forbidden"}), 403
+        period    = request.args.get('period')
+        from_date = request.args.get('from')
+        to_date   = request.args.get('to')
 
-        result = {module: count for module, count in data}
-        return jsonify(result), 200
+        base = db.session.query(KNR.module_name, func.count(KNR.id)).filter(
+            KNR.Approval_status == 'Approved'
+        )
+        base = apply_period_filter(base, KNR.created_at, period, from_date, to_date)
+        data = base.group_by(KNR.module_name).all()
+        return jsonify({m: c for m, c in data}), 200
 
 
     @rlp.route('/repodatabydomain', methods=['GET'])
     @jwt_required()
     def data_by_domain():
         current_user = get_jwt_identity()
-        check_user = User.query.filter_by(yash_id=current_user).first()
-
-        if current_user is None:
+        check_user   = User.query.filter_by(yash_id=current_user).first()
+        if not check_user:
             return jsonify({"msg": "Unauthorized"}), 401
-        
-        if check_user.type == 'Superadmin':
-            data = db.session.query(KNR.domain, func.count(KNR.id)).filter(KNR.Approval_status == 'Approved').group_by(KNR.domain).all()
-        elif check_user.type == 'manager':
-            data = db.session.query(KNR.domain, func.count(KNR.id)).filter(KNR.Approval_status == 'Approved').group_by(KNR.domain).all()
-        elif check_user.type == 'user':
-            data = db.session.query(KNR.domain, func.count(KNR.id)).filter(KNR.Approval_status == 'Approved').group_by(KNR.domain).all()
-        else:
-            return jsonify({"msg": "Forbidden"}), 403
-        
-        result = {domain: count for domain, count in data}
-        return jsonify(result)
+
+        period    = request.args.get('period')
+        from_date = request.args.get('from')
+        to_date   = request.args.get('to')
+
+        base = db.session.query(KNR.domain, func.count(KNR.id)).filter(
+            KNR.Approval_status == 'Approved'
+        )
+        base = apply_period_filter(base, KNR.created_at, period, from_date, to_date)
+        data = base.group_by(KNR.domain).all()
+        return jsonify({d: c for d, c in data}), 200
 
 
     @rlp.route('/search', methods=['GET'])
@@ -1252,54 +1258,27 @@ class KNR_Requirements(Resource):
     @rlp.route('/top-users-solutions', methods=['GET'])
     def top_users_solutions():
         user_type = request.args.get('user_type')
-        period    = request.args.get('period')   # 'monthly', 'quarterly', 'yearly'
-
-        now = datetime.utcnow()
+        period    = request.args.get('period')
+        from_date = request.args.get('from')
+        to_date   = request.args.get('to')
 
         query = db.session.query(
             KNR.username,
             func.count(KNR.id).label('solution_count')
         )
-
         if user_type:
             query = query.join(User, User.name == KNR.username).filter(User.type == user_type)
 
-        # ← add period filter
-        if period == 'monthly':
-            query = query.filter(
-                extract('year',  KNR.created_at) == now.year,
-                extract('month', KNR.created_at) == now.month
-            )
-        elif period == 'quarterly':
-            current_quarter_start_month = ((now.month - 1) // 3) * 3 + 1
-            query = query.filter(
-                extract('year',  KNR.created_at) == now.year,
-                extract('month', KNR.created_at) >= current_quarter_start_month,
-                extract('month', KNR.created_at) <  current_quarter_start_month + 3
-            )
-        elif period == 'yearly':
-            query = query.filter(
-                extract('year', KNR.created_at) == now.year
-            )
-
-        top_users = (
-            query
-            .group_by(KNR.username)
-            .order_by(func.count(KNR.id).desc())
-            .limit(10)
-            .all()
-        )
-
-        labels = [u.username for u in top_users]
-        data   = [int(u.solution_count or 0) for u in top_users]
+        query     = apply_period_filter(query, KNR.created_at, period, from_date, to_date)
+        top_users = query.group_by(KNR.username).order_by(func.count(KNR.id).desc()).limit(10).all()
 
         return jsonify({
-            'labels': labels,
+            'labels': [u.username for u in top_users],
             'datasets': [{
                 'label': 'Solutions',
-                'data': data,
-                'backgroundColor': ['#3e95cd', '#8e5ea2', '#3cba9f', '#e8c3b9', '#c45850',
-                                    '#36a2eb', '#ff6384', '#ffcd56', '#4bc0c0', '#9966ff']
+                'data':  [int(u.solution_count or 0) for u in top_users],
+                'backgroundColor': ['#3e95cd','#8e5ea2','#3cba9f','#e8c3b9','#c45850',
+                                    '#36a2eb','#ff6384','#ffcd56','#4bc0c0','#9966ff']
             }]
         })
 
@@ -1554,31 +1533,26 @@ class KNR_Requirements(Resource):
     def get_manager_stats_monthly():
         try:
             current_user = get_jwt_identity()
-            check_user = User.query.filter_by(yash_id=current_user).first()
-
+            check_user   = User.query.filter_by(yash_id=current_user).first()
             if not check_user or check_user.type != 'Superadmin':
                 return jsonify({'success': False, 'error': 'Unauthorized'}), 403
 
-            year = request.args.get('year', type=int)
-            month = request.args.get('month', type=int)
+            year         = request.args.get('year',  type=int)
+            month        = request.args.get('month', type=int)
             manager_type = request.args.get('manager_type', 'irm')
+            period       = request.args.get('period')
+            from_date    = request.args.get('from')
+            to_date      = request.args.get('to')
 
-            manager_field_map = {
-                'irm': KNR.irm,
-                'srm': KNR.srm,
-                'buh': KNR.buh,
-                'bgh': KNR.bgh
-            }
-
-            manager_field = manager_field_map.get(manager_type, KNR.irm)
+            manager_field = {'irm': KNR.irm, 'srm': KNR.srm, 'buh': KNR.buh, 'bgh': KNR.bgh}.get(manager_type, KNR.irm)
 
             query = db.session.query(
                 manager_field.label('manager_name'),
-                extract('year', KNR.created_at).label('year'),
+                extract('year',  KNR.created_at).label('year'),
                 extract('month', KNR.created_at).label('month'),
-                func.sum(case((KNR.Approval_status == 'Approved', 1), else_=0)).label('approved_count'),
+                func.sum(case((KNR.Approval_status == 'Approved',         1), else_=0)).label('approved_count'),
                 func.sum(case((KNR.Approval_status == 'Sent for Approval', 1), else_=0)).label('pending_count'),
-                func.sum(case((KNR.Approval_status == 'Rejected', 1), else_=0)).label('rejected_count'),
+                func.sum(case((KNR.Approval_status == 'Rejected',         1), else_=0)).label('rejected_count'),
                 func.count(KNR.id).label('total_count')
             ).filter(
                 manager_field != 'NA',
@@ -1586,34 +1560,33 @@ class KNR_Requirements(Resource):
                 manager_field != ''
             )
 
-            if year:
-                query = query.filter(extract('year', KNR.created_at) == year)
-            if month:
-                query = query.filter(extract('month', KNR.created_at) == month)
+            if year:  query = query.filter(extract('year',  KNR.created_at) == year)
+            if month: query = query.filter(extract('month', KNR.created_at) == month)
+
+            # Global period filter applied on top of year/month
+            query = apply_period_filter(query, KNR.created_at, period, from_date, to_date)
 
             results = query.group_by(
                 manager_field,
-                extract('year', KNR.created_at),
+                extract('year',  KNR.created_at),
                 extract('month', KNR.created_at)
             ).order_by(
-                extract('year', KNR.created_at).desc(),
+                extract('year',  KNR.created_at).desc(),
                 extract('month', KNR.created_at).desc(),
                 manager_field
             ).all()
 
-            data = []
-            for row in results:
-                data.append({
-                    'manager_name': row.manager_name,
-                    'year': int(row.year) if row.year else None,
-                    'month': int(row.month) if row.month else None,
-                    'approved': int(row.approved_count or 0),
-                    'pending': int(row.pending_count or 0),
-                    'rejected': int(row.rejected_count or 0),
-                    'total': int(row.total_count or 0)
-                })
+            data = [{
+                'manager_name': row.manager_name,
+                'year':         int(row.year)  if row.year  else None,
+                'month':        int(row.month) if row.month else None,
+                'approved':     int(row.approved_count  or 0),
+                'pending':      int(row.pending_count   or 0),
+                'rejected':     int(row.rejected_count  or 0),
+                'total':        int(row.total_count     or 0)
+            } for row in results]
 
-            return jsonify({'success': True, 'data': data, 'manager_type': manager_type}), 200
+            return jsonify({'success': True, 'data': data}), 200
 
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500

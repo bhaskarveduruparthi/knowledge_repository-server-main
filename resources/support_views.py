@@ -5,6 +5,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from models.user_model import User, LoginLog
 from models.support_model import AnswerVote, Question, Answer
+from resources.repository_views import apply_period_filter
 from schemas.user_schema import user
 from schemas.support_schema import questions
 from default_settings import db 
@@ -160,55 +161,30 @@ class Support(Resource):
     @slp.route('/top-users-votes', methods=['GET'])
     def top_users_votes():
         user_type = request.args.get('user_type')
-        period    = request.args.get('period')   # ← add this
-
-        now = datetime.utcnow()
+        period    = request.args.get('period')
+        from_date = request.args.get('from')
+        to_date   = request.args.get('to')
 
         query = db.session.query(
             Answer.username,
             func.count(Answer.id).label('answer_count'),
             func.sum(Answer.upvotes - Answer.downvotes).label('net_votes')
         )
-
         if user_type:
             query = query.join(User, User.name == Answer.username).filter(User.type == user_type)
 
-        # ← add period filter
-        if period == 'monthly':
-            query = query.filter(
-                extract('year',  Answer.created_at) == now.year,
-                extract('month', Answer.created_at) == now.month
-            )
-        elif period == 'quarterly':
-            current_quarter_start_month = ((now.month - 1) // 3) * 3 + 1
-            query = query.filter(
-                extract('year',  Answer.created_at) == now.year,
-                extract('month', Answer.created_at) >= current_quarter_start_month,
-                extract('month', Answer.created_at) <  current_quarter_start_month + 3
-            )
-        elif period == 'yearly':
-            query = query.filter(
-                extract('year', Answer.created_at) == now.year
-            )
-
-        top_users = (
-            query
-            .group_by(Answer.username)
-            .order_by(func.sum(Answer.upvotes - Answer.downvotes).desc())
-            .limit(10)
-            .all()
-        )
-
-        labels = [u.username for u in top_users]
-        data   = [int(u.net_votes or 0) for u in top_users]
+        query     = apply_period_filter(query, Answer.created_at, period, from_date, to_date)
+        top_users = query.group_by(Answer.username).order_by(
+            func.sum(Answer.upvotes - Answer.downvotes).desc()
+        ).limit(10).all()
 
         return jsonify({
-            'labels': labels,
+            'labels': [u.username for u in top_users],
             'datasets': [{
                 'label': 'Votes',
-                'data': data,
-                'backgroundColor': ['#3e95cd', '#8e5ea2', '#3cba9f', '#e8c3b9', '#c45850',
-                                    '#36a2eb', '#ff6384', '#ffcd56', '#4bc0c0', '#9966ff']
+                'data':  [int(u.net_votes or 0) for u in top_users],
+                'backgroundColor': ['#3e95cd','#8e5ea2','#3cba9f','#e8c3b9','#c45850',
+                                    '#36a2eb','#ff6384','#ffcd56','#4bc0c0','#9966ff']
             }]
         })
-    
+        
