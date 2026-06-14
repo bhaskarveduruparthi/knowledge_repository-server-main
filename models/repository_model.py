@@ -24,6 +24,7 @@ class KNR(db.Model):
     business_justification = db.Column(db.Text, nullable=True)
     username = db.Column(db.String(length=100),default="NA", nullable=True)
     irm = db.Column(db.String(length=100),default="NA", nullable=True)
+    rejection_remarks = db.Column(db.Text, nullable=True)
     srm = db.Column(db.String(length=100),default="NA", nullable=True)
     buh = db.Column(db.String(length=100),default="NA", nullable=True)
     bgh = db.Column(db.String(length=100),default="NA", nullable=True)

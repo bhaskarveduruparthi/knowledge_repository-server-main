@@ -615,19 +615,25 @@ class KNR_Requirements(Resource):
         check_repo = KNR.query.filter_by(id=id).first()
         current_user = get_jwt_identity()
         check_user = User.query.filter_by(yash_id=current_user).first()
-
+    
         if check_repo is not None:
-            check_repo.Approval_status = "Rejected"
-            check_repo.Approver = check_user.name
-            check_repo.Approval_date = datetime.utcnow().date()
+            # ── Read optional rejection remarks from request body ──────────────
+            data = request.get_json(silent=True) or {}
+            rejection_remarks = data.get('rejection_remarks', '').strip() or None
+    
+            check_repo.Approval_status  = "Rejected"
+            check_repo.Approver         = check_user.name
+            check_repo.Approval_date    = datetime.utcnow().date()
+            check_repo.rejection_remarks = rejection_remarks           # ← NEW
+    
             db.session.commit()
-
-            # ── Email trigger ──────────────────────────────────────────────
+    
+            # ── Email trigger ──────────────────────────────────────────────────
             try:
                 repo_creator = User.query.filter_by(name=check_repo.username).first()
-                user_email = repo_creator.email if repo_creator else None
-                irm_email = check_user.email if check_user else None
-
+                user_email   = repo_creator.email if repo_creator else None
+                irm_email    = check_user.email   if check_user   else None
+    
                 if user_email:
                     send_repo_rejected_email(
                         user_email=user_email,
@@ -635,14 +641,16 @@ class KNR_Requirements(Resource):
                         customer_name=check_repo.customer_name,
                         module_name=check_repo.module_name,
                         rejected_by=check_user.name,
-                        irm_email=irm_email
+                        irm_email=irm_email,
+                        # Pass remarks to your email template if it supports it:
+                        # rejection_remarks=rejection_remarks,
                     )
             except Exception as e:
                 current_app.logger.error(f"Rejection email failed for repo {id}: {str(e)}")
-            # ──────────────────────────────────────────────────────────────
-
+            # ──────────────────────────────────────────────────────────────────
+    
             return jsonify("Status of the Repo Changed to Rejected and user notified"), 200
-
+    
         else:
             return jsonify("Repo Not Found or Not Authorised"), 404
 
