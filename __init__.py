@@ -14,10 +14,11 @@ def Create_app():
     Create_routes(app)
     Create_Extension(app)
 
-    from blueprints import blp, rlp, slp
+    from blueprints import blp, rlp, slp, agent_bp
     app.register_blueprint(blp)
     app.register_blueprint(rlp)
     app.register_blueprint(slp)
+    app.register_blueprint(agent_bp)
 
     return app
 
