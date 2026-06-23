@@ -15,8 +15,4 @@ def Create_routes(app):
     api.add_resource(User_Requirements, '/users', methods=['GET','POST', 'PUT', 'DELETE'])
     api.add_resource(KNR_Requirements, '/repos', methods=['GET','POST', 'PUT', 'DELETE'])
 
-    api.add_resource(AgentSearch, '/agent/search', methods=['POST'])
-    api.add_resource(AgentChat, '/agent/chat', methods=['POST'])
-    api.add_resource(AgentDocument, '/agent/document/<int:doc_id>', methods=['GET'])
-    api.add_resource(AgentSummarize, '/agent/document/<int:doc_id>/summarize', methods=['POST'])
     return api.init_app(app)

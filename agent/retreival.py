@@ -4,8 +4,8 @@ from chromadb.utils import embedding_functions
 import pymysql
 
 DB_CONFIG = {
-    "host": "localhost",
-    "user": "root",
+    "host": "10.6.102.245",
+    "user": "admin",
     "password": "Saibhaskar9",
     "database": "knwldg_repository",
 }
