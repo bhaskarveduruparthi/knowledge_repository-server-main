@@ -19,15 +19,33 @@ collection = client.get_or_create_collection(
     embedding_function=embedding_fn
 )
 
-def search_documents(query, n_results=5, user_id=None, approval_status=None, max_distance=0.65):
-    where_filter = {}
+def search_documents(query, n_results=5, filters=None, approval_status=None, max_distance=0.65):
+    where_conditions = []
+
+    if filters:
+        if filters.get('module'):
+            where_conditions.append({"module_name": {"$eq": filters['module']}})
+        if filters.get('customer'):
+            where_conditions.append({"customer_name": {"$eq": filters['customer']}})
+        if filters.get('domain'):
+            where_conditions.append({"domain": {"$eq": filters['domain']}})
+        if filters.get('sector'):
+            where_conditions.append({"sector": {"$eq": filters['sector']}})
+
     if approval_status:
-        where_filter["approval_status"] = approval_status
+        where_conditions.append({"approval_status": {"$eq": approval_status}})
+
+    if len(where_conditions) > 1:
+        where_filter = {"$and": where_conditions}
+    elif len(where_conditions) == 1:
+        where_filter = where_conditions[0]
+    else:
+        where_filter = None
 
     results = collection.query(
         query_texts=[query],
         n_results=n_results,
-        where=where_filter if where_filter else None
+        where=where_filter
     )
 
     matches = []
@@ -35,11 +53,7 @@ def search_documents(query, n_results=5, user_id=None, approval_status=None, max
         results['documents'][0], results['metadatas'][0], results['distances'][0]
     ):
         if distance <= max_distance:
-            matches.append({
-                "text": doc,
-                "metadata": meta,
-                "distance": distance
-            })
+            matches.append({"text": doc, "metadata": meta, "distance": distance})
     return matches
 
 def get_document_by_id(doc_id):
